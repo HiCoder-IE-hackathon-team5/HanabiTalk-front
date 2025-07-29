@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCookie, deleteCookie } from "../utils/cookie";
+import MessageInput from "../components/MessageInput";
 
 const ChatPage = () => {
   const navigate = useNavigate();
-  const userName = getCookie("user_name");
-  const roomName = getCookie("room_name");
+  const roomName = getCookie("room_name") || "";
+  const userName = getCookie("user_name") || "";
 
   useEffect(() => {
     if (!userName || !roomName) {
@@ -27,6 +28,7 @@ const ChatPage = () => {
       <p>ユーザー名: {userName}</p>
       <p>ルーム名: {roomName}</p>
       <button onClick={handleLogout}>ログアウト</button>
+      <MessageInput roomName={roomName} userName={userName} />
     </div>
   );
 };

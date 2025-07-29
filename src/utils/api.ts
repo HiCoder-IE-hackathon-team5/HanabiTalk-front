@@ -52,3 +52,37 @@ export const fetchUserId = async (userName: string): Promise<string> => {
   const data = await res.json();
   return data.user_id;
 };
+
+export interface MessagePayload {
+  room_name: string;
+  user_name: string;
+  message: string;
+  color: string;
+}
+
+
+export const postMessage = async (payload: MessagePayload) => {
+  if (import.meta.env.MODE === "development") {
+    // 開発用: 送信内容を確認しやすく表示
+    console.group("Mock Message Send");
+    console.log("送信先(API): /api/messages (mock)");
+    console.log("送信データ:", payload);
+    console.groupEnd();
+
+    // デバッグ用にブラウザの通知も出す（任意）
+    // alert(`Mock送信:\n${JSON.stringify(payload, null, 2)}`);
+
+    // Mockレスポンスとしてpayloadを返す
+    return { status: "ok", mock: true, sentData: payload };
+  }
+
+  // 本番環境: 実際にGoサーバーにPOST
+  const response = await fetch("/api/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error("メッセージ送信に失敗しました");
+  return response.json();
+};
