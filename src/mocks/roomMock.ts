@@ -1,21 +1,21 @@
 export type RoomInfo = {
-  name: string;
-  users: string[]; // ルーム内のユーザー名一覧
+	room_name: string;
+	users: string[]; // ルーム内のユーザー名一覧
 };
 
 export const mockRooms: RoomInfo[] = [
-  {
-    name: "momiji",
-    users: ["yurin", "taro"]
-  },
-  {
-    name: "sakura",
-    users: ["hanako"]
-  }
+	{
+		room_name: "momiji",
+		users: ["yurin", "taro"],
+	},
+	{
+		room_name: "sakura",
+		users: ["hanako"],
+	},
 ];
 
 export const fetchMockRoomInfo = async (): Promise<RoomInfo[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(mockRooms), 300);
-  });
+	return new Promise((resolve) => {
+		setTimeout(() => resolve(mockRooms), 300);
+	});
 };

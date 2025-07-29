@@ -1,58 +1,66 @@
 import React, { useState } from "react";
-import { postMessage } from "../utils/api";
+import type { ChatMessage } from "../hooks/useWebSocket";
 
 interface Props {
-  roomName: string;
-  userName: string;
+	sendMessage: (message: Omit<ChatMessage, "room_name" | "user_name">) => void;
 }
 
-const MessageInput: React.FC<Props> = ({ roomName, userName }) => {
-  const [message, setMessage] = useState("");
-  const [color, setColor] = useState("black");
+const MessageInput: React.FC<Props> = ({ sendMessage }) => {
+	const [message, setMessage] = useState("");
+	const [color, setColor] = useState("#0000ff");
 
-  const handleSend = async () => {
-    if (!message.trim()) return;
+	const handleSend = () => {
+		if (!message.trim()) return;
 
-    try {
-      await postMessage({ room_name: roomName, user_name: userName, message, color });
-      setMessage(""); // 送信後にクリア
-    } catch (err) {
-      console.error("メッセージ送信に失敗:", err);
-    }
-  };
+		// メッセージ送信
+		sendMessage({
+			message,
+			color,
+		});
 
-  return (
-    <div className="message-input">
-      <input
-        type="text"
-        placeholder="メッセージを入力"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-      />
+		setMessage("");
+	};
 
-      {/* カラー選択ラジオ */}
-      <label>
-        <input
-          type="radio"
-          value="blue"
-          checked={color === "blue"}
-          onChange={(e) => setColor(e.target.value)}
-        />
-        青
-      </label>
-      <label>
-        <input
-          type="radio"
-          value="red"
-          checked={color === "red"}
-          onChange={(e) => setColor(e.target.value)}
-        />
-        赤
-      </label>
+	return (
+		<div className="message-input">
+			<input
+				type="text"
+				placeholder="メッセージを入力"
+				value={message}
+				onChange={(e) => setMessage(e.target.value)}
+			/>
 
-      <button onClick={handleSend}>送信</button>
-    </div>
-  );
+			<label>
+				<input
+					type="radio"
+					value="#0000ff"
+					checked={color === "#0000ff"}
+					onChange={(e) => setColor(e.target.value)}
+				/>
+				青
+			</label>
+			<label>
+				<input
+					type="radio"
+					value="#ff0000"
+					checked={color === "#ff0000"}
+					onChange={(e) => setColor(e.target.value)}
+				/>
+				赤
+			</label>
+			<label>
+				<input
+					type="radio"
+					value="#00aa00"
+					checked={color === "#00aa00"}
+					onChange={(e) => setColor(e.target.value)}
+				/>
+				緑
+			</label>
+
+			<button onClick={handleSend}>送信</button>
+		</div>
+	);
 };
 
 export default MessageInput;

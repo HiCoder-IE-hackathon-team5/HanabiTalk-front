@@ -1,36 +1,39 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCookie, deleteCookie } from "../utils/cookie";
+import { getCookie } from "../utils/cookie";
 import MessageInput from "../components/MessageInput";
+import MessageList from "../components/MessageList";
+import Logout from "../components/Logout";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 const ChatPage = () => {
-  const navigate = useNavigate();
-  const roomName = getCookie("room_name") || "";
-  const userName = getCookie("user_name") || "";
+	const navigate = useNavigate();
+	const roomName = getCookie("room_name") || "";
+	const userName = getCookie("user_name") || "";
+	const userId = getCookie("user_id") || "";
 
-  useEffect(() => {
-    if (!userName || !roomName) {
-      // 情報がない場合はログイン画面に戻す
-      navigate("/login");
-    }
-  }, []);
+	const { messages, sendMessage } = useWebSocket(roomName, userId);
 
-  const handleLogout = () => {
-    deleteCookie("user_name");
-    deleteCookie("room_name");
-    deleteCookie("user_id");
-    navigate("/login");
-  };
+	useEffect(() => {
+		if (!userName || !roomName) {
+			navigate("/login");
+		}
+	}, []);
 
-  return (
-    <div>
-      <h1>チャットページ</h1>
-      <p>ユーザー名: {userName}</p>
-      <p>ルーム名: {roomName}</p>
-      <button onClick={handleLogout}>ログアウト</button>
-      <MessageInput roomName={roomName} userName={userName} />
-    </div>
-  );
+	return (
+		<div style={{ maxWidth: "500px", margin: "0 auto" }}>
+			<h1>チャットページ</h1>
+			<p>ユーザー名: {userName}</p>
+			<p>ルーム名: {roomName}</p>
+			<Logout />
+
+			{/* メッセージリスト */}
+			<MessageList messages={messages} />
+
+			{/* 入力欄 */}
+			<MessageInput sendMessage={sendMessage} />
+		</div>
+	);
 };
 
 export default ChatPage;
