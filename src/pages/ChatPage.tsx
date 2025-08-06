@@ -8,18 +8,34 @@ import Firework from "../components/Firework";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
 
-// 爆発の座標（中央・上部）
-const FIREWORK_X = window.innerWidth / 2;
-const FIREWORK_Y = window.innerHeight / 3;
+// 花火アイテム型
+type FireworkItem = {
+  id: string;
+  message: string;
+  color: string;
+  x: number;
+  y: number;
+};
+
+function getRandomX() {
+  // 左右5%は避ける
+  const min = window.innerWidth * 0.05;
+  const max = window.innerWidth * 0.95;
+  return Math.random() * (max - min) + min;
+}
+function getRandomY() {
+  // 上から1/4～2/3の範囲
+  const min = window.innerHeight * 0.25;
+  const max = window.innerHeight * 0.66;
+  return Math.random() * (max - min) + min;
+}
 
 const ChatPage = () => {
   const navigate = useNavigate();
   const roomName = getCookie("room_name") || "General";
   const userName = getCookie("user_name") || "";
   const [messages, setMessages] = useState<MessagePayload[]>([]);
-  const [fireworkColor, setFireworkColor] = useState<string | null>(null);
-  const [fireworkMessage, setFireworkMessage] = useState<string | null>(null);
-  const [explodedPos, setExplodedPos] = useState<{ x: number; y: number } | null>(null);
+  const [fireworkItems, setFireworkItems] = useState<FireworkItem[]>([]);
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
   useEffect(() => {
@@ -33,7 +49,28 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [roomName, userName, navigate]);
 
-  // 送信時の花火
+  // メッセージ受信時（送信も含む）で花火アイテム追加
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    // 直近のメッセージが前回表示済みなら何もしない
+    if (lastMessageRef.current && lastMessageRef.current === latest) return;
+    lastMessageRef.current = latest;
+
+    // 花火アイテム追加
+    setFireworkItems(items => [
+      ...items,
+      {
+        id: `${latest.room_name}-${latest.user_name}-${latest.message}-${Date.now()}`,
+        message: latest.message,
+        color: latest.color,
+        x: getRandomX(),
+        y: getRandomY(),
+      }
+    ]);
+  }, [messages]);
+
+  // 送信時にもfireworkItems追加
   const sendMessage = ({ message, color }: { message: string; color: string }) => {
     if (!message.trim()) return;
     addMockMessage({
@@ -42,28 +79,21 @@ const ChatPage = () => {
       message,
       color,
     });
-    setFireworkColor(color);
-    setFireworkMessage(message);
-    setExplodedPos(null); // 一旦消す
+    setFireworkItems(items => [
+      ...items,
+      {
+        id: `${roomName}-${userName}-${message}-${Date.now()}`,
+        message,
+        color,
+        x: getRandomX(),
+        y: getRandomY(),
+      }
+    ]);
   };
 
-  // メッセージ受信時（messages更新時）の花火
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const latest = messages[messages.length - 1];
-    // 直近のメッセージが前回表示済みなら何もしない
-    if (lastMessageRef.current && lastMessageRef.current === latest) return;
-    lastMessageRef.current = latest;
-    setFireworkColor(latest.color);
-    setFireworkMessage(latest.message);
-    setExplodedPos(null);
-  }, [messages]);
-
-  // 花火終了時
-  const handleFireworkEnd = () => {
-    setFireworkColor(null);
-    setFireworkMessage(null);
-    setExplodedPos(null);
+  // 花火終了時にfireworkItemsから削除
+  const handleFireworkEnd = (id: string) => {
+    setFireworkItems(items => items.filter(item => item.id !== id));
   };
 
   return (
@@ -74,39 +104,70 @@ const ChatPage = () => {
       <Logout />
       <MessageList messages={messages} />
       <MessageInput sendMessage={sendMessage} />
-      {fireworkColor && (
-        <>
-          <Firework
-            x={FIREWORK_X}
-            y={FIREWORK_Y}
-            color={fireworkColor}
-            onEnd={handleFireworkEnd}
-            onExplode={(x, y) => setExplodedPos({ x, y })}
-          />
-          {explodedPos && fireworkMessage && (
-            <div
-              style={{
-                position: "fixed",
-                left: `${explodedPos.x}px`,
-                top: `${explodedPos.y}px`,
-                transform: "translate(-50%, -50%)",
-                color: fireworkColor,
-                fontWeight: "bold",
-                fontSize: "2rem",
-                textShadow: "0 0 8px #fff, 0 0 20px #000",
-                pointerEvents: "none",
-                zIndex: 51,
-                textAlign: "center",
-                maxWidth: "90vw",
-              }}
-            >
-              {fireworkMessage}
-            </div>
-          )}
-        </>
-      )}
+      {/* 複数の花火とメッセージ表示 */}
+      {fireworkItems.map(item => (
+        <FireworkWithMessage
+          key={item.id}
+          id={item.id}
+          x={item.x}
+          y={item.y}
+          color={item.color}
+          message={item.message}
+          onEnd={handleFireworkEnd}
+        />
+      ))}
     </div>
   );
 };
+
+// 花火＋メッセージコンポーネント
+function FireworkWithMessage({
+  id,
+  x,
+  y,
+  color,
+  message,
+  onEnd,
+}: {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  message: string;
+  onEnd: (id: string) => void;
+}) {
+  const [showMsg, setShowMsg] = useState(false);
+  return (
+    <>
+      <Firework
+        x={x}
+        y={y}
+        color={color}
+        onEnd={() => onEnd(id)}
+        onExplode={() => setShowMsg(true)}
+      />
+      {showMsg && (
+        <div
+          style={{
+            position: "fixed",
+            left: `${x}px`,
+            top: `${y}px`,
+            transform: "translate(-50%, -50%)",
+            color: color,
+            fontWeight: "bold",
+            fontSize: "2rem",
+            textShadow: "0 0 8px #fff, 0 0 20px #000",
+            pointerEvents: "none",
+            zIndex: 51,
+            textAlign: "center",
+            maxWidth: "90vw",
+          }}
+        >
+          {message}
+        </div>
+      )}
+    </>
+  );
+}
 
 export default ChatPage;
