@@ -1,66 +1,48 @@
 import React, { useState } from "react";
-import type { ChatMessage } from "../hooks/useWebSocket";
 
-interface Props {
-	sendMessage: (message: Omit<ChatMessage, "room_name" | "user_name">) => void;
-}
+type MessageInputProps = {
+  sendMessage: (data: { message: string; color: string }) => void;
+};
 
-const MessageInput: React.FC<Props> = ({ sendMessage }) => {
-	const [message, setMessage] = useState("");
-	const [color, setColor] = useState("#0000ff");
+const MessageInput: React.FC<MessageInputProps> = ({ sendMessage }) => {
+  const [message, setMessage] = useState("");
+  const [color, setColor] = useState("#ff69b4"); // デフォルト色
 
-	const handleSend = () => {
-		if (!message.trim()) return;
+  const handleSend = () => {
+    if (!message.trim()) return;
+    sendMessage({ message, color });
+    setMessage("");
+  };
 
-		// メッセージ送信
-		sendMessage({
-			message,
-			color,
-		});
-
-		setMessage("");
-	};
-
-	return (
-		<div className="message-input">
-			<input
-				type="text"
-				placeholder="メッセージを入力"
-				value={message}
-				onChange={(e) => setMessage(e.target.value)}
-			/>
-
-			<label>
-				<input
-					type="radio"
-					value="#0000ff"
-					checked={color === "#0000ff"}
-					onChange={(e) => setColor(e.target.value)}
-				/>
-				青
-			</label>
-			<label>
-				<input
-					type="radio"
-					value="#ff0000"
-					checked={color === "#ff0000"}
-					onChange={(e) => setColor(e.target.value)}
-				/>
-				赤
-			</label>
-			<label>
-				<input
-					type="radio"
-					value="#00aa00"
-					checked={color === "#00aa00"}
-					onChange={(e) => setColor(e.target.value)}
-				/>
-				緑
-			</label>
-
-			<button onClick={handleSend}>送信</button>
-		</div>
-	);
+  return (
+    <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+      <input
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        placeholder="メッセージを入力"
+        style={{ flex: 1, padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+      />
+      <input
+        type="color"
+        value={color}
+        onChange={e => setColor(e.target.value)}
+        style={{ width: "40px", height: "40px" }}
+      />
+      <button
+        onClick={handleSend}
+        style={{
+          background: "#6366f1",
+          color: "white",
+          border: "none",
+          padding: "8px 16px",
+          borderRadius: "4px",
+          cursor: "pointer"
+        }}
+      >
+        送信
+      </button>
+    </div>
+  );
 };
 
 export default MessageInput;

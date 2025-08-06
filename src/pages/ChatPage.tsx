@@ -1,39 +1,55 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCookie } from "../utils/cookie";
 import MessageInput from "../components/MessageInput";
 import MessageList from "../components/MessageList";
 import Logout from "../components/Logout";
 import { useWebSocket } from "../hooks/useWebSocket";
+import Firework from "../components/Firework";
+import type { ChatMessage } from "../hooks/useWebSocket";
 
 const ChatPage = () => {
-	const navigate = useNavigate();
-	const roomName = getCookie("room_name") || "";
-	const userName = getCookie("user_name") || "";
-	const userId = getCookie("user_id") || "";
+  const navigate = useNavigate();
+  const room_name = getCookie("room_name") || "";
+  const user_name = getCookie("user_name") || "";
+  const userId = getCookie("user_id") || "";
 
-	const { messages, sendMessage } = useWebSocket(roomName, userId);
+  const { messages, sendMessage } = useWebSocket(room_name, userId);
 
-	useEffect(() => {
-		if (!userName || !roomName) {
-			navigate("/login");
-		}
-	}, []);
+  // 花火表示用
+  const [showFirework, setShowFirework] = useState(false);
 
-	return (
-		<div style={{ maxWidth: "500px", margin: "0 auto" }}>
-			<h1>チャットページ</h1>
-			<p>ユーザー名: {userName}</p>
-			<p>ルーム名: {roomName}</p>
-			<Logout />
+  useEffect(() => {
+    if (!user_name || !room_name) {
+      navigate("/login");
+    }
+  }, [user_name, room_name, navigate]);
 
-			{/* メッセージリスト */}
-			<MessageList messages={messages} />
+  // MessageInputから { message, color } を受け取り、ChatMessage型にして送信
+  const handleSendMessage = (data: { message: string; color: string }) => {
+    const msg: ChatMessage = {
+      room_name,
+      user_name,
+      message: data.message,
+      color: data.color,
+    };
+    sendMessage(msg);
+    setShowFirework(true);
+  };
 
-			{/* 入力欄 */}
-			<MessageInput sendMessage={sendMessage} />
-		</div>
-	);
+  return (
+    <div style={{ maxWidth: "500px", margin: "0 auto", position: "relative" }}>
+      <h1>チャットページ</h1>
+      <p>ユーザー名: {user_name}</p>
+      <p>ルーム名: {room_name}</p>
+      <Logout />
+      <MessageList messages={messages} />
+      <MessageInput sendMessage={handleSendMessage} />
+      {showFirework && (
+        <Firework onEnd={() => setShowFirework(false)} />
+      )}
+    </div>
+  );
 };
 
 export default ChatPage;
