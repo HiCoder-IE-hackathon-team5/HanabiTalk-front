@@ -47,7 +47,12 @@ const ChatPage = () => {
       <MessageList messages={messages} />
       <MessageInput sendMessage={handleSendMessage} />
       {/* showFireworkがtrueの間、花火が表示され続けます */}
-      {showFirework && <Firework />}
+      {showFirework && (
+        <Firework onEnd={() => {
+          console.log("Firework ended");
+          setShowFirework(false);
+        }} />
+      )}
     </div>
   );
 };
