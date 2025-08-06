@@ -25,7 +25,7 @@ const ChatPage = () => {
     }
   }, [user_name, room_name, navigate]);
 
-  // MessageInputから { message, color } を受け取り、ChatMessage型にして送信
+  // 送信時に花火表示
   const handleSendMessage = (data: { message: string; color: string }) => {
     const msg: ChatMessage = {
       room_name,
@@ -34,6 +34,7 @@ const ChatPage = () => {
       color: data.color,
     };
     sendMessage(msg);
+    // 花火を表示したままにする
     setShowFirework(true);
   };
 
@@ -45,9 +46,8 @@ const ChatPage = () => {
       <Logout />
       <MessageList messages={messages} />
       <MessageInput sendMessage={handleSendMessage} />
-      {showFirework && (
-        <Firework onEnd={() => setShowFirework(false)} />
-      )}
+      {/* showFireworkがtrueの間、花火が表示され続けます */}
+      {showFirework && <Firework />}
     </div>
   );
 };
