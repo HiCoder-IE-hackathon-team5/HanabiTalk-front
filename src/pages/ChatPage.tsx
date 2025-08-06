@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCookie } from "../utils/cookie";
 import MessageInput from "../components/MessageInput";
@@ -8,6 +8,7 @@ import Firework from "../components/Firework";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
 
+// 爆発の座標（中央・上部）
 const FIREWORK_X = window.innerWidth / 2;
 const FIREWORK_Y = window.innerHeight / 3;
 
@@ -19,6 +20,7 @@ const ChatPage = () => {
   const [fireworkColor, setFireworkColor] = useState<string | null>(null);
   const [fireworkMessage, setFireworkMessage] = useState<string | null>(null);
   const [explodedPos, setExplodedPos] = useState<{ x: number; y: number } | null>(null);
+  const lastMessageRef = useRef<MessagePayload | null>(null);
 
   useEffect(() => {
     if (!userName || !roomName) {
@@ -27,11 +29,11 @@ const ChatPage = () => {
     }
     const unsubscribe = subscribeMockMessages(roomName, (msgs) => {
       setMessages(msgs);
-      console.log("Test Message Receive:", msgs[msgs.length - 1]);
     });
     return () => unsubscribe();
   }, [roomName, userName, navigate]);
 
+  // 送信時の花火
   const sendMessage = ({ message, color }: { message: string; color: string }) => {
     if (!message.trim()) return;
     addMockMessage({
@@ -42,9 +44,22 @@ const ChatPage = () => {
     });
     setFireworkColor(color);
     setFireworkMessage(message);
-    setExplodedPos(null); // 一旦消しておく
+    setExplodedPos(null); // 一旦消す
   };
 
+  // メッセージ受信時（messages更新時）の花火
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    // 直近のメッセージが前回表示済みなら何もしない
+    if (lastMessageRef.current && lastMessageRef.current === latest) return;
+    lastMessageRef.current = latest;
+    setFireworkColor(latest.color);
+    setFireworkMessage(latest.message);
+    setExplodedPos(null);
+  }, [messages]);
+
+  // 花火終了時
   const handleFireworkEnd = () => {
     setFireworkColor(null);
     setFireworkMessage(null);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 type FireworkProps = {
   x?: number;
@@ -31,6 +31,7 @@ export default function Firework({
 }: FireworkProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [show, setShow] = useState(true);
+  const explodedRef = useRef(false);
   const GRAVITY = 0.08;
 
   useEffect(() => {
@@ -50,11 +51,11 @@ export default function Firework({
       },
     ]);
     setShow(true);
+    explodedRef.current = false;
   }, [x, y, color]);
 
   useEffect(() => {
     if (!show) return;
-    let explodedCalled = false;
     let rafId: number;
     const animate = () => {
       setParticles((prev) => {
@@ -67,9 +68,9 @@ export default function Firework({
           if (p.y < y + 30) p.a -= 7;
           if (p.vy > -2 || p.y < y) {
             // 爆発タイミング
-            if (onExplode && !explodedCalled) {
+            if (onExplode && !explodedRef.current) {
               onExplode(p.x, p.y);
-              explodedCalled = true;
+              explodedRef.current = true;
             }
             const balls = 60 + Math.floor(Math.random() * 30);
             const explosion: Particle[] = [];
