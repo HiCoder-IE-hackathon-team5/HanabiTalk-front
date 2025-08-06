@@ -8,26 +8,37 @@ import Firework from "../components/Firework";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
 
-// 花火アイテム型
 type FireworkItem = {
   id: string;
   message: string;
   color: string;
   x: number;
   y: number;
+  size: number;
+  duration: number;
+  launchSpeed: number;
 };
 
-function getRandomX() {
-  // 左右5%は避ける
-  const min = window.innerWidth * 0.05;
-  const max = window.innerWidth * 0.95;
+function getCentralX() {
+  const min = window.innerWidth * 0.25;
+  const max = window.innerWidth * 0.75;
   return Math.random() * (max - min) + min;
 }
-function getRandomY() {
-  // 上から1/4～2/3の範囲
-  const min = window.innerHeight * 0.25;
-  const max = window.innerHeight * 0.66;
+function getCentralY() {
+  const min = window.innerHeight * 0.32;
+  const max = window.innerHeight * 0.60;
   return Math.random() * (max - min) + min;
+}
+function getFireworkSize(message: string) {
+  return Math.min(2.5, 1.0 + message.length / 40);
+}
+function getFireworkDuration(message: string) {
+  // メッセージを読む時間を確保するため、1文字あたり0.06秒、最低3秒
+  return Math.max(3, Math.min(9, message.length * 0.06));
+}
+function getFireworkLaunchSpeed(message: string) {
+  // 速めに: launchSpeedが小さいほどゆっくり。0.7〜1.5
+  return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
 const ChatPage = () => {
@@ -49,28 +60,27 @@ const ChatPage = () => {
     return () => unsubscribe();
   }, [roomName, userName, navigate]);
 
-  // メッセージ受信時（送信も含む）で花火アイテム追加
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
-    // 直近のメッセージが前回表示済みなら何もしない
     if (lastMessageRef.current && lastMessageRef.current === latest) return;
     lastMessageRef.current = latest;
 
-    // 花火アイテム追加
     setFireworkItems(items => [
       ...items,
       {
         id: `${latest.room_name}-${latest.user_name}-${latest.message}-${Date.now()}`,
         message: latest.message,
         color: latest.color,
-        x: getRandomX(),
-        y: getRandomY(),
+        x: getCentralX(),
+        y: getCentralY(),
+        size: getFireworkSize(latest.message),
+        duration: getFireworkDuration(latest.message),
+        launchSpeed: getFireworkLaunchSpeed(latest.message),
       }
     ]);
   }, [messages]);
 
-  // 送信時にもfireworkItems追加
   const sendMessage = ({ message, color }: { message: string; color: string }) => {
     if (!message.trim()) return;
     addMockMessage({
@@ -85,13 +95,15 @@ const ChatPage = () => {
         id: `${roomName}-${userName}-${message}-${Date.now()}`,
         message,
         color,
-        x: getRandomX(),
-        y: getRandomY(),
+        x: getCentralX(),
+        y: getCentralY(),
+        size: getFireworkSize(message),
+        duration: getFireworkDuration(message),
+        launchSpeed: getFireworkLaunchSpeed(message),
       }
     ]);
   };
 
-  // 花火終了時にfireworkItemsから削除
   const handleFireworkEnd = (id: string) => {
     setFireworkItems(items => items.filter(item => item.id !== id));
   };
@@ -104,7 +116,6 @@ const ChatPage = () => {
       <Logout />
       <MessageList messages={messages} />
       <MessageInput sendMessage={sendMessage} />
-      {/* 複数の花火とメッセージ表示 */}
       {fireworkItems.map(item => (
         <FireworkWithMessage
           key={item.id}
@@ -113,6 +124,9 @@ const ChatPage = () => {
           y={item.y}
           color={item.color}
           message={item.message}
+          size={item.size}
+          duration={item.duration}
+          launchSpeed={item.launchSpeed}
           onEnd={handleFireworkEnd}
         />
       ))}
@@ -120,13 +134,15 @@ const ChatPage = () => {
   );
 };
 
-// 花火＋メッセージコンポーネント
 function FireworkWithMessage({
   id,
   x,
   y,
   color,
   message,
+  size,
+  duration,
+  launchSpeed,
   onEnd,
 }: {
   id: string;
@@ -134,16 +150,29 @@ function FireworkWithMessage({
   y: number;
   color: string;
   message: string;
+  size: number;
+  duration: number;
+  launchSpeed: number;
   onEnd: (id: string) => void;
 }) {
   const [showMsg, setShowMsg] = useState(false);
+
+  // 花火消滅時にメッセージも消す
+  const handleFireworkEnd = () => {
+    setShowMsg(false);
+    onEnd(id);
+  };
+
   return (
     <>
       <Firework
         x={x}
         y={y}
         color={color}
-        onEnd={() => onEnd(id)}
+        size={size}
+        duration={duration}
+        launchSpeed={launchSpeed}
+        onEnd={handleFireworkEnd}
         onExplode={() => setShowMsg(true)}
       />
       {showMsg && (
@@ -153,14 +182,26 @@ function FireworkWithMessage({
             left: `${x}px`,
             top: `${y}px`,
             transform: "translate(-50%, -50%)",
+            width: "min(30vw, 320px)",
+            height: "min(30vw, 320px)",
+            borderRadius: "50%",
+            // background: "rgba(255,255,255,0.18)", // ← 消す
+            background: "none", // うっすら丸を消す
             color: color,
             fontWeight: "bold",
-            fontSize: "2rem",
+            fontSize: "clamp(1rem, 3vw, 2rem)",
             textShadow: "0 0 8px #fff, 0 0 20px #000",
             pointerEvents: "none",
-            zIndex: 51,
+            zIndex: 52, // 花火より上に
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             textAlign: "center",
-            maxWidth: "90vw",
+            boxSizing: "border-box",
+            padding: "1em",
+            wordBreak: "break-word",
+            whiteSpace: "pre-line",
+            overflow: "hidden",
           }}
         >
           {message}

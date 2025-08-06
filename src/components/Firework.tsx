@@ -4,6 +4,9 @@ type FireworkProps = {
   x?: number;
   y?: number;
   color?: string;
+  size?: number;
+  duration?: number;
+  launchSpeed?: number;
   onEnd?: () => void;
   onExplode?: (x: number, y: number) => void;
 };
@@ -26,13 +29,16 @@ export default function Firework({
   x = window.innerWidth / 2,
   y = window.innerHeight / 3,
   color = "#ff69b4",
+  size = 1,
+  duration = 3,
+  launchSpeed = 1,
   onEnd,
   onExplode,
 }: FireworkProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [show, setShow] = useState(true);
   const explodedRef = useRef(false);
-  const GRAVITY = 0.08;
+  const GRAVITY = 0.05; // やや速い
 
   useEffect(() => {
     setParticles([
@@ -40,19 +46,19 @@ export default function Firework({
         x: x,
         y: window.innerHeight - 40,
         vx: 0,
-        vy: -12,
+        vy: -8 * size * launchSpeed, // 打ち上げ速度をやや速め
         opacity: 1,
         size: 1,
         exploded: false,
         a: 255,
-        w: 16,
+        w: 16 * size,
         frame: 0,
         type: 0,
       },
     ]);
     setShow(true);
     explodedRef.current = false;
-  }, [x, y, color]);
+  }, [x, y, color, size, launchSpeed]);
 
   useEffect(() => {
     if (!show) return;
@@ -64,19 +70,18 @@ export default function Firework({
           p.frame++;
           p.x += p.vx;
           p.y += p.vy;
-          p.vy += GRAVITY;
-          if (p.y < y + 30) p.a -= 7;
-          if (p.vy > -2 || p.y < y) {
-            // 爆発タイミング
+          p.vy += GRAVITY * size * launchSpeed;
+          if (p.y < y + 30 * size) p.a -= 7 * size;
+          if (p.vy > -1.2 || p.y < y) {
             if (onExplode && !explodedRef.current) {
               onExplode(p.x, p.y);
               explodedRef.current = true;
             }
-            const balls = 60 + Math.floor(Math.random() * 30);
+            const balls = Math.floor((60 + Math.random() * 30) * size);
             const explosion: Particle[] = [];
             for (let i = 0; i < balls; i++) {
               const angle = (2 * Math.PI * i) / balls + Math.random() * 0.12;
-              const speed = 5.5 + Math.random() * 2.2;
+              const speed = (3.5 + Math.random() * 1.7) * size;
               explosion.push({
                 x: p.x,
                 y: p.y,
@@ -86,7 +91,7 @@ export default function Firework({
                 size: 1,
                 exploded: true,
                 a: 255,
-                w: 8 + Math.random() * 7,
+                w: (8 + Math.random() * 7) * size,
                 frame: 0,
                 type: 1,
               });
@@ -100,18 +105,20 @@ export default function Firework({
             p.frame++;
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += GRAVITY / 1.7;
-            p.vx *= 0.978;
-            p.vy *= 0.984;
-            p.a *= 0.97;
-            p.w *= 0.987;
-            p.opacity *= 0.97;
-            if (p.w > 1 && p.a > 8 && p.opacity > 0.12 && p.y < window.innerHeight) {
+            p.vy += (GRAVITY / 2.8) * size;
+            const decay = 0.988 ** duration;
+            p.vx *= 0.993 ** duration;
+            p.vy *= 0.994 ** duration;
+            p.a *= decay;
+            p.w *= 0.995 ** duration;
+            p.opacity *= decay;
+            if (p.w > 1 && p.a > 8 && p.opacity > 0.10 && p.y < window.innerHeight) {
               arr.push(p);
             }
           }
           if (arr.length === 0) {
             setShow(false);
+            if (onEnd) onEnd();
             return [];
           }
           return arr;
@@ -121,13 +128,7 @@ export default function Firework({
     };
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-  }, [show, y, color, onExplode]);
-
-  useEffect(() => {
-    if (!show && onEnd) {
-      onEnd();
-    }
-  }, [show, onEnd]);
+  }, [show, y, color, onExplode, size, duration, launchSpeed, onEnd]);
 
   if (!show) return null;
   return (
@@ -149,6 +150,7 @@ export default function Firework({
               transform: "translate(-50%, -50%)",
               filter: "blur(0.7px)",
               pointerEvents: "none",
+              zIndex: 51, // メッセージより下
             }}
           />
         ))}
