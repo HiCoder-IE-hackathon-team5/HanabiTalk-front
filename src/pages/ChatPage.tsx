@@ -8,28 +8,30 @@ import Firework from "../components/Firework";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
 
+const FIREWORK_X = window.innerWidth / 2;
+const FIREWORK_Y = window.innerHeight / 3;
+
 const ChatPage = () => {
   const navigate = useNavigate();
   const roomName = getCookie("room_name") || "General";
   const userName = getCookie("user_name") || "";
   const [messages, setMessages] = useState<MessagePayload[]>([]);
-  const [firework, setFirework] = useState<{ color: string } | null>(null);
+  const [fireworkColor, setFireworkColor] = useState<string | null>(null);
+  const [fireworkMessage, setFireworkMessage] = useState<string | null>(null);
+  const [explodedPos, setExplodedPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!userName || !roomName) {
       navigate("/login");
       return;
     }
-    // ダミーのメッセージを定期購読
     const unsubscribe = subscribeMockMessages(roomName, (msgs) => {
       setMessages(msgs);
-      // ここで最新メッセージをコンソール出力
       console.log("Test Message Receive:", msgs[msgs.length - 1]);
     });
     return () => unsubscribe();
   }, [roomName, userName, navigate]);
 
-  // メッセージ送信時
   const sendMessage = ({ message, color }: { message: string; color: string }) => {
     if (!message.trim()) return;
     addMockMessage({
@@ -38,7 +40,15 @@ const ChatPage = () => {
       message,
       color,
     });
-    setFirework({ color }); // 花火表示
+    setFireworkColor(color);
+    setFireworkMessage(message);
+    setExplodedPos(null); // 一旦消しておく
+  };
+
+  const handleFireworkEnd = () => {
+    setFireworkColor(null);
+    setFireworkMessage(null);
+    setExplodedPos(null);
   };
 
   return (
@@ -49,11 +59,36 @@ const ChatPage = () => {
       <Logout />
       <MessageList messages={messages} />
       <MessageInput sendMessage={sendMessage} />
-      {firework && (
-        <Firework
-          color={firework.color}
-          onEnd={() => setFirework(null)}
-        />
+      {fireworkColor && (
+        <>
+          <Firework
+            x={FIREWORK_X}
+            y={FIREWORK_Y}
+            color={fireworkColor}
+            onEnd={handleFireworkEnd}
+            onExplode={(x, y) => setExplodedPos({ x, y })}
+          />
+          {explodedPos && fireworkMessage && (
+            <div
+              style={{
+                position: "fixed",
+                left: `${explodedPos.x}px`,
+                top: `${explodedPos.y}px`,
+                transform: "translate(-50%, -50%)",
+                color: fireworkColor,
+                fontWeight: "bold",
+                fontSize: "2rem",
+                textShadow: "0 0 8px #fff, 0 0 20px #000",
+                pointerEvents: "none",
+                zIndex: 51,
+                textAlign: "center",
+                maxWidth: "90vw",
+              }}
+            >
+              {fireworkMessage}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

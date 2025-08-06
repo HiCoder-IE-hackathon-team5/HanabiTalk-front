@@ -5,6 +5,7 @@ type FireworkProps = {
   y?: number;
   color?: string;
   onEnd?: () => void;
+  onExplode?: (x: number, y: number) => void;
 };
 
 type Particle = {
@@ -26,6 +27,7 @@ export default function Firework({
   y = window.innerHeight / 3,
   color = "#ff69b4",
   onEnd,
+  onExplode,
 }: FireworkProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [show, setShow] = useState(true);
@@ -52,6 +54,7 @@ export default function Firework({
 
   useEffect(() => {
     if (!show) return;
+    let explodedCalled = false;
     let rafId: number;
     const animate = () => {
       setParticles((prev) => {
@@ -63,6 +66,11 @@ export default function Firework({
           p.vy += GRAVITY;
           if (p.y < y + 30) p.a -= 7;
           if (p.vy > -2 || p.y < y) {
+            // 爆発タイミング
+            if (onExplode && !explodedCalled) {
+              onExplode(p.x, p.y);
+              explodedCalled = true;
+            }
             const balls = 60 + Math.floor(Math.random() * 30);
             const explosion: Particle[] = [];
             for (let i = 0; i < balls; i++) {
@@ -102,8 +110,7 @@ export default function Firework({
             }
           }
           if (arr.length === 0) {
-            setShow(false); // ←ここでonEndを直接呼ばない
-            // if (onEnd) onEnd(); ←削除
+            setShow(false);
             return [];
           }
           return arr;
@@ -113,9 +120,8 @@ export default function Firework({
     };
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-  }, [show, y, color]);
+  }, [show, y, color, onExplode]);
 
-  // showがfalseになった後にonEndを呼ぶ
   useEffect(() => {
     if (!show && onEnd) {
       onEnd();
