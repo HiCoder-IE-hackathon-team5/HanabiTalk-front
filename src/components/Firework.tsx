@@ -1,112 +1,126 @@
 import { useEffect, useState } from "react";
 
+type FireworkProps = {
+  x?: number;
+  y?: number;
+  color?: string;
+  onEnd?: () => void;
+};
+
 type Particle = {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  color: string;
   opacity: number;
   size: number;
   exploded: boolean;
+  a: number;
+  w: number;
+  frame: number;
+  type: number;
 };
 
-const COLORS = [
-  "#fffacd", "#ff69b4", "#40bfff", "#4bff40", "#ff4040", "#b940ff", "#ffffff",
-];
-
-export default function Firework({ x = 400, y = 400, onEnd }: { x?: number, y?: number, onEnd?: () => void }) {
+export default function Firework({
+  x = window.innerWidth / 2,
+  y = window.innerHeight / 3,
+  color = "#ff69b4",
+  onEnd,
+}: FireworkProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
-  const [exploded, setExploded] = useState(false);
   const [show, setShow] = useState(true);
+  const GRAVITY = 0.08;
 
-  // 初期化: 上昇玉
   useEffect(() => {
-    setParticles([{
-      x: x,
-      y: 800,
-      vx: 0,
-      vy: -8,
-      color: "#fffacd",
-      opacity: 1,
-      size: 12,
-      exploded: false,
-    }]);
-    setExploded(false);
+    setParticles([
+      {
+        x: x,
+        y: window.innerHeight - 40,
+        vx: 0,
+        vy: -12,
+        opacity: 1,
+        size: 1,
+        exploded: false,
+        a: 255,
+        w: 16,
+        frame: 0,
+        type: 0,
+      },
+    ]);
     setShow(true);
-  }, [x, y]);
+  }, [x, y, color]);
 
-  // アニメーション
   useEffect(() => {
     if (!show) return;
-    let frame = 0;
     let rafId: number;
     const animate = () => {
-      frame++;
       setParticles((prev) => {
-        // 玉の上昇・爆発判定
-        if (!exploded && prev.length === 1) {
-          let p = prev[0];
+        if (prev.length === 1 && !prev[0].exploded) {
+          let p = { ...prev[0] };
+          p.frame++;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += GRAVITY;
+          if (p.y < y + 30) p.a -= 7;
           if (p.vy > -2 || p.y < y) {
-            // 爆発!
-            setExploded(true);
-            const particles: Particle[] = [];
-            const numParticles = 120;
-            for (let i = 0; i < numParticles; i++) {
-              const angle = (2 * Math.PI * i) / numParticles + Math.random() * 0.07;
-              const speed = 4 + Math.random() * 2;
-              const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-              particles.push({
+            const balls = 60 + Math.floor(Math.random() * 30);
+            const explosion: Particle[] = [];
+            for (let i = 0; i < balls; i++) {
+              const angle = (2 * Math.PI * i) / balls + Math.random() * 0.12;
+              const speed = 5.5 + Math.random() * 2.2;
+              explosion.push({
                 x: p.x,
                 y: p.y,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
-                color,
                 opacity: 1,
-                size: 7 + Math.random() * 5,
+                size: 1,
                 exploded: true,
+                a: 255,
+                w: 8 + Math.random() * 7,
+                frame: 0,
+                type: 1,
               });
             }
-            return particles;
-          } else {
-            // 上昇
-            const gravity = 0.06;
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += gravity;
-            return [{ ...p }];
+            return explosion;
           }
-        }
-        // 爆発後: パーティクル拡散
-        else if (exploded) {
-          return prev.map((p) => {
-            // 重力
-            const gravity = 0.07;
-            const airResist = 0.983;
+          return [p];
+        } else {
+          const arr: Particle[] = [];
+          for (let p of prev) {
+            p.frame++;
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += gravity;
-            p.vx *= airResist;
-            p.vy *= airResist;
+            p.vy += GRAVITY / 1.7;
+            p.vx *= 0.978;
+            p.vy *= 0.984;
+            p.a *= 0.97;
+            p.w *= 0.987;
             p.opacity *= 0.97;
-            p.size *= 0.98;
-            return { ...p };
-          }).filter(p => p.opacity > 0.1 && p.size > 1 && p.y < 820);
+            if (p.w > 1 && p.a > 8 && p.opacity > 0.12 && p.y < window.innerHeight) {
+              arr.push(p);
+            }
+          }
+          if (arr.length === 0) {
+            setShow(false); // ←ここでonEndを直接呼ばない
+            // if (onEnd) onEnd(); ←削除
+            return [];
+          }
+          return arr;
         }
-        return prev;
       });
-
-      // 消えたら非表示
-      if (exploded && particles.length === 0) {
-        setShow(false);
-        if (onEnd) onEnd();
-        return;
-      }
       rafId = requestAnimationFrame(animate);
     };
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-  }, [exploded, show, y, onEnd]);
+  }, [show, y, color]);
+
+  // showがfalseになった後にonEndを呼ぶ
+  useEffect(() => {
+    if (!show && onEnd) {
+      onEnd();
+    }
+  }, [show, onEnd]);
 
   if (!show) return null;
   return (
@@ -119,15 +133,15 @@ export default function Firework({ x = 400, y = 400, onEnd }: { x?: number, y?: 
               position: "absolute",
               left: `${p.x}px`,
               top: `${p.y}px`,
-              width: `${p.size}px`,
-              height: `${p.size}px`,
+              width: `${p.w}px`,
+              height: `${p.w}px`,
               borderRadius: "50%",
-              background: p.color,
-              opacity: p.opacity,
-              boxShadow: `0 0 18px 7px ${p.color}88`,
+              background: color,
+              opacity: p.a / 255,
+              boxShadow: `0 0 30px 10px ${color}99`,
               transform: "translate(-50%, -50%)",
+              filter: "blur(0.7px)",
               pointerEvents: "none",
-              filter: "blur(0.6px)",
             }}
           />
         ))}
