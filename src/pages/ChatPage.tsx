@@ -1,13 +1,15 @@
-import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { getCookie } from "../utils/cookie";
+import { useState, useEffect, useRef } from "react";
+import SidePanel from "../components/SidePanel";
+import ChatLog from "../components/ChatLog";
+import PanelToggleButton from "../components/PanelToggleButton";
 import MessageInput from "../components/MessageInput";
 import Logout from "../components/Logout";
 import Firework from "../components/Firework";
-import SidePanel from "../components/SidePanel";
-import ChatLog from "../components/ChatLog";
-import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
+import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
+
+const DUMMY_USER = "you";
+const DUMMY_ROOM = "General";
 
 type FireworkItem = {
   id: string;
@@ -40,26 +42,19 @@ function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
-const ChatPage = () => {
-  const navigate = useNavigate();
-  const roomName = getCookie("room_name") || "General";
-  const userName = getCookie("user_name") || "";
+export default function ChatPage() {
+  const [logOpen, setLogOpen] = useState(false);
   const [messages, setMessages] = useState<MessagePayload[]>([]);
   const [fireworkItems, setFireworkItems] = useState<FireworkItem[]>([]);
-  const [logOpen, setLogOpen] = useState(false);
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
+  // ダミーメッセージ購読
   useEffect(() => {
-    if (!userName || !roomName) {
-      navigate("/login");
-      return;
-    }
-    const unsubscribe = subscribeMockMessages(roomName, (msgs) => {
-      setMessages(msgs);
-    });
-    return () => unsubscribe();
-  }, [roomName, userName, navigate]);
+    const unsubscribe = subscribeMockMessages(DUMMY_ROOM, (msgs) => setMessages(msgs));
+    return unsubscribe;
+  }, []);
 
+  // 花火
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
@@ -81,27 +76,16 @@ const ChatPage = () => {
     ]);
   }, [messages]);
 
-  const sendMessage = ({ message, color }: { message: string; color: string }) => {
-    if (!message.trim()) return;
-    addMockMessage({
-      room_name: roomName,
-      user_name: userName,
-      message,
-      color,
-    });
-    setFireworkItems(items => [
-      ...items,
-      {
-        id: `${roomName}-${userName}-${message}-${Date.now()}`,
-        message,
-        color,
-        x: getCentralX(),
-        y: getCentralY(),
-        size: getFireworkSize(message),
-        duration: getFireworkDuration(message),
-        launchSpeed: getFireworkLaunchSpeed(message),
-      }
-    ]);
+  const sendMessage = (data: { message: string; color: string }) => {
+    if (!data.message.trim()) return;
+    const payload: MessagePayload = {
+      user_name: DUMMY_USER,
+      message: data.message,
+      room_name: DUMMY_ROOM,
+      color: data.color,
+    };
+    addMockMessage(payload);
+    setMessages((prev) => [...prev, payload]);
   };
 
   const handleFireworkEnd = (id: string) => {
@@ -109,68 +93,56 @@ const ChatPage = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#22272e",
-        paddingRight: "350px", // サイドパネル開閉時の余白
-        transition: "padding-right 0.3s",
-      }}
-    >
-      <div style={{ maxWidth: "700px", margin: "0 auto", padding: "3em 1em 1em 1em" }}>
+    <div style={{ minHeight: "100vh", background: "#22272e", position: "relative" }}>
+      {/* ログパネル */}
+      <SidePanel isOpen={logOpen}>
+        <ChatLog messages={messages} userName={DUMMY_USER} />
+      </SidePanel>
+      {/* トグルボタン */}
+      <PanelToggleButton
+        onClick={() => setLogOpen((open) => !open)}
+        isOpen={logOpen}
+      />
+      {/* 花火 */}
+      {fireworkItems.map(item => (
+        <FireworkWithMessage
+          key={item.id}
+          id={item.id}
+          x={item.x}
+          y={item.y}
+          color={item.color}
+          message={item.message}
+          size={item.size}
+          duration={item.duration}
+          launchSpeed={item.launchSpeed}
+          onEnd={handleFireworkEnd}
+        />
+      ))}
+      {/* メインUI：自分のバルーンは表示しない */}
+      <div
+        style={{
+          maxWidth: "400px",
+          margin: "0 auto",
+          padding: "3em 1em 1em 1em",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center"
+        }}
+      >
         <h1 style={{ color: "#fff" }}>チャットページ</h1>
-        <p style={{ color: "#ddd" }}>ユーザー名: {userName}</p>
-        <p style={{ color: "#ddd" }}>ルーム名: {roomName}</p>
+        <p style={{ color: "#ddd" }}>ユーザー名: {DUMMY_USER}</p>
+        <p style={{ color: "#ddd" }}>ルーム名: {DUMMY_ROOM}</p>
         <Logout />
-        <div style={{ margin: "2em 0" }}>
+        <div style={{ margin: "2em 0", width: "100%" }}>
           <MessageInput sendMessage={sendMessage} />
         </div>
-        {fireworkItems.map(item => (
-          <FireworkWithMessage
-            key={item.id}
-            id={item.id}
-            x={item.x}
-            y={item.y}
-            color={item.color}
-            message={item.message}
-            size={item.size}
-            duration={item.duration}
-            launchSpeed={item.launchSpeed}
-            onEnd={handleFireworkEnd}
-          />
-        ))}
+        {/* ここに自分の発言バルーンは表示しません */}
       </div>
-      <SidePanel isOpen={logOpen} toggle={() => setLogOpen(open => !open)}>
-        <ChatLog messages={messages} userName={userName} />
-      </SidePanel>
-      {!logOpen && (
-        <button
-          style={{
-            position: "fixed",
-            top: "2em",
-            right: "0.7em",
-            width: "2.4em",
-            height: "2.4em",
-            borderRadius: "50%",
-            background: "#444",
-            color: "#fff",
-            border: "none",
-            boxShadow: "0 2px 8px #0006",
-            cursor: "pointer",
-            zIndex: 120,
-            fontSize: "1.5em",
-            userSelect: "none"
-          }}
-          aria-label="ログパネルを開く"
-          onClick={() => setLogOpen(true)}
-        >
-          {">"}
-        </button>
-      )}
     </div>
   );
-};
+}
 
+// 花火+メッセージ表示
 function FireworkWithMessage({
   id,
   x,
@@ -246,5 +218,3 @@ function FireworkWithMessage({
     </>
   );
 }
-
-export default ChatPage;

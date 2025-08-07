@@ -11,7 +11,8 @@ export default function ChatLog({
     <div
       style={{
         width: "100%",
-        height: "60vh",
+        height: "100%",
+        minHeight: 0,
         background: "#181d23",
         color: "#fff",
         borderRadius: "8px",
