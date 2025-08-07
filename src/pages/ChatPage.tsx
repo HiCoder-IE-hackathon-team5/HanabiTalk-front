@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCookie } from "../utils/cookie";
 import MessageInput from "../components/MessageInput";
-import MessageList from "../components/MessageList";
+import ChatLog from "../components/ChatLog";
 import Logout from "../components/Logout";
 import Firework from "../components/Firework";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
@@ -33,11 +33,10 @@ function getFireworkSize(message: string) {
   return Math.min(2.5, 1.0 + message.length / 40);
 }
 function getFireworkDuration(message: string) {
-  // メッセージを読む時間を確保するため、1文字あたり0.06秒、最低3秒
   return Math.max(3, Math.min(9, message.length * 0.06));
 }
 function getFireworkLaunchSpeed(message: string) {
-  // 速めに: launchSpeedが小さいほどゆっくり。0.7〜1.5
+  // 速め: 0.7〜1.5
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
@@ -109,27 +108,46 @@ const ChatPage = () => {
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "0 auto" }}>
-      <h1>チャットページ</h1>
-      <p>ユーザー名: {userName}</p>
-      <p>ルーム名: {roomName}</p>
-      <Logout />
-      <MessageList messages={messages} />
-      <MessageInput sendMessage={sendMessage} />
-      {fireworkItems.map(item => (
-        <FireworkWithMessage
-          key={item.id}
-          id={item.id}
-          x={item.x}
-          y={item.y}
-          color={item.color}
-          message={item.message}
-          size={item.size}
-          duration={item.duration}
-          launchSpeed={item.launchSpeed}
-          onEnd={handleFireworkEnd}
-        />
-      ))}
+    <div
+      style={{
+        maxWidth: "1080px",
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "row",
+        gap: "2em",
+        alignItems: "flex-start",
+        width: "100vw",
+        minHeight: "100vh",
+        background: "#22272e",
+      }}
+    >
+      <div style={{ flex: 1, padding: "2em 1em 1em 2em" }}>
+        <h1 style={{ color: "#fff" }}>チャットページ</h1>
+        <p style={{ color: "#ddd" }}>ユーザー名: {userName}</p>
+        <p style={{ color: "#ddd" }}>ルーム名: {roomName}</p>
+        <Logout />
+        <div style={{ margin: "2em 0" }}>
+          <MessageInput sendMessage={sendMessage} />
+        </div>
+        {/* 花火＋メッセージ */}
+        {fireworkItems.map(item => (
+          <FireworkWithMessage
+            key={item.id}
+            id={item.id}
+            x={item.x}
+            y={item.y}
+            color={item.color}
+            message={item.message}
+            size={item.size}
+            duration={item.duration}
+            launchSpeed={item.launchSpeed}
+            onEnd={handleFireworkEnd}
+          />
+        ))}
+      </div>
+      <div style={{ flex: 1, padding: "2em 2em 1em 0" }}>
+        <ChatLog messages={messages} userName={userName} />
+      </div>
     </div>
   );
 };
@@ -185,14 +203,13 @@ function FireworkWithMessage({
             width: "min(30vw, 320px)",
             height: "min(30vw, 320px)",
             borderRadius: "50%",
-            // background: "rgba(255,255,255,0.18)", // ← 消す
-            background: "none", // うっすら丸を消す
+            background: "none",
             color: color,
             fontWeight: "bold",
             fontSize: "clamp(1rem, 3vw, 2rem)",
             textShadow: "0 0 8px #fff, 0 0 20px #000",
             pointerEvents: "none",
-            zIndex: 52, // 花火より上に
+            zIndex: 52,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -202,6 +219,7 @@ function FireworkWithMessage({
             wordBreak: "break-word",
             whiteSpace: "pre-line",
             overflow: "hidden",
+            userSelect: "none",
           }}
         >
           {message}

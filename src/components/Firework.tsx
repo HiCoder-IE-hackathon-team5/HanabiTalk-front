@@ -38,7 +38,7 @@ export default function Firework({
   const [particles, setParticles] = useState<Particle[]>([]);
   const [show, setShow] = useState(true);
   const explodedRef = useRef(false);
-  const GRAVITY = 0.05; // やや速い
+  const GRAVITY = 0.05;
 
   useEffect(() => {
     setParticles([
@@ -46,7 +46,7 @@ export default function Firework({
         x: x,
         y: window.innerHeight - 40,
         vx: 0,
-        vy: -8 * size * launchSpeed, // 打ち上げ速度をやや速め
+        vy: -8 * size * launchSpeed, // 打ち上げ速度やや速め
         opacity: 1,
         size: 1,
         exploded: false,
@@ -150,7 +150,7 @@ export default function Firework({
               transform: "translate(-50%, -50%)",
               filter: "blur(0.7px)",
               pointerEvents: "none",
-              zIndex: 51, // メッセージより下
+              zIndex: 51,
             }}
           />
         ))}
