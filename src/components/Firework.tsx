@@ -46,7 +46,7 @@ export default function Firework({
         x: x,
         y: window.innerHeight - 40,
         vx: 0,
-        vy: -8 * size * launchSpeed, // 打ち上げ速度やや速め
+        vy: -8 * size * launchSpeed,
         opacity: 1,
         size: 1,
         exploded: false,

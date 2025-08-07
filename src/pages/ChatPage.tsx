@@ -2,9 +2,10 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCookie } from "../utils/cookie";
 import MessageInput from "../components/MessageInput";
-import ChatLog from "../components/ChatLog";
 import Logout from "../components/Logout";
 import Firework from "../components/Firework";
+import SidePanel from "../components/SidePanel";
+import ChatLog from "../components/ChatLog";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import type { MessagePayload } from "../mocks/messageMock";
 
@@ -36,7 +37,6 @@ function getFireworkDuration(message: string) {
   return Math.max(3, Math.min(9, message.length * 0.06));
 }
 function getFireworkLaunchSpeed(message: string) {
-  // 速め: 0.7〜1.5
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
@@ -46,6 +46,7 @@ const ChatPage = () => {
   const userName = getCookie("user_name") || "";
   const [messages, setMessages] = useState<MessagePayload[]>([]);
   const [fireworkItems, setFireworkItems] = useState<FireworkItem[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
   useEffect(() => {
@@ -110,18 +111,13 @@ const ChatPage = () => {
   return (
     <div
       style={{
-        maxWidth: "1080px",
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "row",
-        gap: "2em",
-        alignItems: "flex-start",
-        width: "100vw",
         minHeight: "100vh",
         background: "#22272e",
+        paddingRight: "350px", // サイドパネル開閉時の余白
+        transition: "padding-right 0.3s",
       }}
     >
-      <div style={{ flex: 1, padding: "2em 1em 1em 2em" }}>
+      <div style={{ maxWidth: "700px", margin: "0 auto", padding: "3em 1em 1em 1em" }}>
         <h1 style={{ color: "#fff" }}>チャットページ</h1>
         <p style={{ color: "#ddd" }}>ユーザー名: {userName}</p>
         <p style={{ color: "#ddd" }}>ルーム名: {roomName}</p>
@@ -129,7 +125,6 @@ const ChatPage = () => {
         <div style={{ margin: "2em 0" }}>
           <MessageInput sendMessage={sendMessage} />
         </div>
-        {/* 花火＋メッセージ */}
         {fireworkItems.map(item => (
           <FireworkWithMessage
             key={item.id}
@@ -145,9 +140,33 @@ const ChatPage = () => {
           />
         ))}
       </div>
-      <div style={{ flex: 1, padding: "2em 2em 1em 0" }}>
+      <SidePanel isOpen={logOpen} toggle={() => setLogOpen(open => !open)}>
         <ChatLog messages={messages} userName={userName} />
-      </div>
+      </SidePanel>
+      {!logOpen && (
+        <button
+          style={{
+            position: "fixed",
+            top: "2em",
+            right: "0.7em",
+            width: "2.4em",
+            height: "2.4em",
+            borderRadius: "50%",
+            background: "#444",
+            color: "#fff",
+            border: "none",
+            boxShadow: "0 2px 8px #0006",
+            cursor: "pointer",
+            zIndex: 120,
+            fontSize: "1.5em",
+            userSelect: "none"
+          }}
+          aria-label="ログパネルを開く"
+          onClick={() => setLogOpen(true)}
+        >
+          {">"}
+        </button>
+      )}
     </div>
   );
 };
@@ -175,7 +194,6 @@ function FireworkWithMessage({
 }) {
   const [showMsg, setShowMsg] = useState(false);
 
-  // 花火消滅時にメッセージも消す
   const handleFireworkEnd = () => {
     setShowMsg(false);
     onEnd(id);
