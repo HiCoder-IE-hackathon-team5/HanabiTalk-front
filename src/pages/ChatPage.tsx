@@ -5,9 +5,10 @@ import PanelToggleButton from "../components/PanelToggleButton";
 import MessageInput from "../components/MessageInput";
 import Logout from "../components/Logout";
 import Firework from "../components/Firework";
-import type { MessagePayload } from "../mocks/messageMock";
+import StarryBackground from "../components/StarryBackground";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import { getCookie } from "../utils/cookie";
+import type { MessagePayload } from "../mocks/messageMock";
 
 type FireworkItem = {
   id: string;
@@ -93,15 +94,18 @@ export default function ChatPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#22272e", position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: "transparent", position: "relative" }}>
+      <StarryBackground />
       {/* ログパネル */}
       <SidePanel isOpen={logOpen}>
         <ChatLog messages={messages} userName={userName} />
       </SidePanel>
+      {/* サイドパネルのトグルボタン */}
       <PanelToggleButton
         onClick={() => setLogOpen((open) => !open)}
         isOpen={logOpen}
       />
+      {/* 花火エフェクト */}
       {fireworkItems.map(item => (
         <FireworkWithMessage
           key={item.id}
@@ -116,7 +120,7 @@ export default function ChatPage() {
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* ヘッダー部分を右下に横並びで絶対位置配置 */}
+      {/* 右下のヘッダー・ユーザ情報 */}
       <div
         style={{
           position: "fixed",
@@ -196,6 +200,7 @@ export default function ChatPage() {
   );
 }
 
+// 花火とメッセージ表示
 function FireworkWithMessage({
   id,
   x,
