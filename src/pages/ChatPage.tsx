@@ -7,9 +7,7 @@ import Logout from "../components/Logout";
 import Firework from "../components/Firework";
 import type { MessagePayload } from "../mocks/messageMock";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
-
-const DUMMY_USER = "you";
-const DUMMY_ROOM = "General";
+import { getCookie } from "../utils/cookie";
 
 type FireworkItem = {
   id: string;
@@ -43,18 +41,20 @@ function getFireworkLaunchSpeed(message: string) {
 }
 
 export default function ChatPage() {
+  // ログイン時にcookieへ保存されている値を取得
+  const userName = getCookie("user_name") || "you";
+  const roomName = getCookie("room_name") || "General";
+
   const [logOpen, setLogOpen] = useState(false);
   const [messages, setMessages] = useState<MessagePayload[]>([]);
   const [fireworkItems, setFireworkItems] = useState<FireworkItem[]>([]);
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
-  // ダミーメッセージ購読
   useEffect(() => {
-    const unsubscribe = subscribeMockMessages(DUMMY_ROOM, (msgs) => setMessages(msgs));
+    const unsubscribe = subscribeMockMessages(roomName, (msgs) => setMessages(msgs));
     return unsubscribe;
-  }, []);
+  }, [roomName]);
 
-  // 花火
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
@@ -79,9 +79,9 @@ export default function ChatPage() {
   const sendMessage = (data: { message: string; color: string }) => {
     if (!data.message.trim()) return;
     const payload: MessagePayload = {
-      user_name: DUMMY_USER,
+      user_name: userName,
       message: data.message,
-      room_name: DUMMY_ROOM,
+      room_name: roomName,
       color: data.color,
     };
     addMockMessage(payload);
@@ -96,14 +96,12 @@ export default function ChatPage() {
     <div style={{ minHeight: "100vh", background: "#22272e", position: "relative" }}>
       {/* ログパネル */}
       <SidePanel isOpen={logOpen}>
-        <ChatLog messages={messages} userName={DUMMY_USER} />
+        <ChatLog messages={messages} userName={userName} />
       </SidePanel>
-      {/* トグルボタン */}
       <PanelToggleButton
         onClick={() => setLogOpen((open) => !open)}
         isOpen={logOpen}
       />
-      {/* 花火 */}
       {fireworkItems.map(item => (
         <FireworkWithMessage
           key={item.id}
@@ -118,31 +116,86 @@ export default function ChatPage() {
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* メインUI：自分のバルーンは表示しない */}
+      {/* ヘッダー部分を右下に横並びで絶対位置配置 */}
       <div
         style={{
-          maxWidth: "400px",
-          margin: "0 auto",
-          padding: "3em 1em 1em 1em",
+          position: "fixed",
+          right: 0,
+          bottom: 0,
+          padding: "1.5em 2em",
+          zIndex: 50,
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center"
+          flexDirection: "row",
+          alignItems: "center",
+          background: "transparent",
+          gap: "1.3em",
+          pointerEvents: "none"
         }}
       >
-        <h1 style={{ color: "#fff" }}>チャットページ</h1>
-        <p style={{ color: "#ddd" }}>ユーザー名: {DUMMY_USER}</p>
-        <p style={{ color: "#ddd" }}>ルーム名: {DUMMY_ROOM}</p>
-        <Logout />
-        <div style={{ margin: "2em 0", width: "100%" }}>
-          <MessageInput sendMessage={sendMessage} />
+        <div
+          style={{
+            color: "#fff",
+            textAlign: "center",
+            fontSize: "2.2em",
+            fontWeight: "bold",
+            pointerEvents: "auto"
+          }}
+        >
+          チャットページ
         </div>
-        {/* ここに自分の発言バルーンは表示しません */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: "0.7em",
+            fontSize: "1em",
+            color: "#eee",
+            fontWeight: 400,
+            background: "rgba(30,32,39,0.95)",
+            borderRadius: "8px",
+            padding: "0.4em 1.1em 0.4em 1.1em",
+            pointerEvents: "auto",
+            boxShadow: "0 2px 12px #0003"
+          }}
+        >
+          <span>ユーザー: <b>{userName}</b></span>
+          <span>ルーム: <b>{roomName}</b></span>
+          <span>
+            <Logout
+              style={{
+                fontSize: "0.95em",
+                padding: "0.25em 0.8em",
+                borderRadius: "6px",
+                background: "#232323",
+                color: "#fff",
+                border: "none",
+                fontWeight: "bold",
+                cursor: "pointer",
+                margin: 0,
+                boxShadow: "0 1px 5px #0003"
+              }}
+            />
+          </span>
+        </div>
+      </div>
+      {/* 入力欄を左下に絶対位置配置 */}
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          bottom: 0,
+          width: "min(480px, 92vw)",
+          padding: "1.2em 1em",
+          zIndex: 100,
+        }}
+      >
+        <MessageInput sendMessage={sendMessage} />
       </div>
     </div>
   );
 }
 
-// 花火+メッセージ表示
 function FireworkWithMessage({
   id,
   x,
