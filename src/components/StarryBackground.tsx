@@ -19,7 +19,8 @@ export default function StarryBackground() {
           width: 100vw;
           height: 100vh;
           z-index: 0;
-          background-image: linear-gradient(0deg, #00dedc, #115d89, #080f1c);
+          /* 空の色を暗めに変更 */
+          background-image: linear-gradient(0deg, #04223a 60%, #0b2340 100%, #050a13 100%);
           overflow: hidden;
           pointer-events: none;
         }
