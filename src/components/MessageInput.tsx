@@ -6,7 +6,7 @@ type MessageInputProps = {
 
 const MessageInput: React.FC<MessageInputProps> = ({ sendMessage }) => {
   const [message, setMessage] = useState("");
-  const [color, setColor] = useState("#ff69b4"); // デフォルト色
+  const [color, setColor] = useState("#ff69b4");
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -14,7 +14,6 @@ const MessageInput: React.FC<MessageInputProps> = ({ sendMessage }) => {
     setMessage("");
   };
 
-  // エンター送信対応（IME確定中は送信しない）
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !(e.nativeEvent as any).isComposing) {
       handleSend();
@@ -79,7 +78,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ sendMessage }) => {
           fontSize: "1.05em",
           cursor: "pointer",
           boxShadow: "0 2px 10px #6161e544",
-          transition: "background 0.17s, box-shadow 0.1s, transform 0.08s",
+          transition: "background 0.17s, boxShadow 0.1s, transform 0.08s",
         }}
         onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
         onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}

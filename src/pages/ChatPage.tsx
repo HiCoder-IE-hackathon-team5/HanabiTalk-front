@@ -8,7 +8,9 @@ import Firework from "../components/Firework";
 import StarryBackground from "../components/StarryBackground";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import { getCookie } from "../utils/cookie";
-import type { MessagePayload } from "../mocks/messageMock";
+import type { MessagePayload as OrigMessagePayload } from "../mocks/messageMock";
+
+type MessagePayload = OrigMessagePayload;
 
 type FireworkItem = {
   id: string;
@@ -17,7 +19,6 @@ type FireworkItem = {
   x: number;
   y: number;
   size: number;
-  duration: number;
   launchSpeed: number;
 };
 
@@ -34,15 +35,11 @@ function getCentralY() {
 function getFireworkSize(message: string) {
   return Math.min(2.5, 1.0 + message.length / 40);
 }
-function getFireworkDuration(message: string) {
-  return Math.max(3, Math.min(9, message.length * 0.06));
-}
 function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
 export default function ChatPage() {
-  // ログイン時にcookieへ保存されている値を取得
   const userName = getCookie("user_name") || "you";
   const roomName = getCookie("room_name") || "General";
 
@@ -52,7 +49,7 @@ export default function ChatPage() {
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeMockMessages(roomName, (msgs) => setMessages(msgs));
+    const unsubscribe = subscribeMockMessages(roomName, (msgs: MessagePayload[]) => setMessages(msgs));
     return unsubscribe;
   }, [roomName]);
 
@@ -71,7 +68,6 @@ export default function ChatPage() {
         x: getCentralX(),
         y: getCentralY(),
         size: getFireworkSize(latest.message),
-        duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
       }
     ]);
@@ -96,16 +92,13 @@ export default function ChatPage() {
   return (
     <div style={{ minHeight: "100vh", background: "transparent", position: "relative" }}>
       <StarryBackground />
-      {/* ログパネル */}
       <SidePanel isOpen={logOpen}>
         <ChatLog messages={messages} userName={userName} />
       </SidePanel>
-      {/* サイドパネルのトグルボタン */}
       <PanelToggleButton
         onClick={() => setLogOpen((open) => !open)}
         isOpen={logOpen}
       />
-      {/* 花火エフェクト */}
       {fireworkItems.map(item => (
         <FireworkWithMessage
           key={item.id}
@@ -115,12 +108,10 @@ export default function ChatPage() {
           color={item.color}
           message={item.message}
           size={item.size}
-          duration={item.duration}
           launchSpeed={item.launchSpeed}
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* 右下のヘッダー・ユーザ情報＋「チャットページ」文言もこの中へ */}
       <div
         style={{
           position: "fixed",
@@ -179,7 +170,7 @@ export default function ChatPage() {
                 cursor: "pointer",
                 margin: 0,
                 boxShadow: "0 1px 8px #6366f155",
-                transition: "background 0.18s, box-shadow 0.12s, transform 0.09s",
+                transition: "background 0.18s, boxShadow 0.12s, transform 0.09s",
                 outline: "none",
                 pointerEvents: "auto",
               }}
@@ -190,7 +181,6 @@ export default function ChatPage() {
           </span>
         </div>
       </div>
-      {/* 入力欄を左下に絶対位置配置 */}
       <div
         style={{
           position: "fixed",
@@ -215,7 +205,6 @@ function FireworkWithMessage({
   color,
   message,
   size,
-  duration,
   launchSpeed,
   onEnd,
 }: {
@@ -225,7 +214,6 @@ function FireworkWithMessage({
   color: string;
   message: string;
   size: number;
-  duration: number;
   launchSpeed: number;
   onEnd: (id: string) => void;
 }) {
@@ -243,7 +231,6 @@ function FireworkWithMessage({
         y={y}
         color={color}
         size={size}
-        duration={duration}
         launchSpeed={launchSpeed}
         onEnd={handleFireworkEnd}
         onExplode={() => setShowMsg(true)}
