@@ -120,7 +120,7 @@ export default function ChatPage() {
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* 右下のヘッダー・ユーザ情報 */}
+      {/* 右下のヘッダー・ユーザ情報＋「チャットページ」文言もこの中へ */}
       <div
         style={{
           position: "fixed",
@@ -138,47 +138,54 @@ export default function ChatPage() {
       >
         <div
           style={{
-            color: "#fff",
-            textAlign: "center",
-            fontSize: "2.2em",
-            fontWeight: "bold",
-            pointerEvents: "auto"
-          }}
-        >
-          チャットページ
-        </div>
-        <div
-          style={{
             display: "flex",
             flexDirection: "row",
             alignItems: "center",
-            gap: "0.7em",
+            gap: "1.2em",
             fontSize: "1em",
             color: "#eee",
             fontWeight: 400,
-            background: "rgba(30,32,39,0.95)",
+            background: "rgba(30,32,39,0.93)",
             borderRadius: "8px",
-            padding: "0.4em 1.1em 0.4em 1.1em",
+            padding: "0.6em 1.4em 0.6em 1.4em",
             pointerEvents: "auto",
             boxShadow: "0 2px 12px #0003"
           }}
         >
+          <span style={{
+            fontSize: "1.1em",
+            color: "#b5badc",
+            opacity: 0.7,
+            fontWeight: 500,
+            letterSpacing: "0.04em",
+            textShadow: "0 0 2px #121222",
+            userSelect: "none",
+            marginRight: "1.2em"
+          }}>
+            チャットページ
+          </span>
           <span>ユーザー: <b>{userName}</b></span>
           <span>ルーム: <b>{roomName}</b></span>
           <span>
             <Logout
               style={{
-                fontSize: "0.95em",
-                padding: "0.25em 0.8em",
-                borderRadius: "6px",
-                background: "#232323",
+                fontSize: "1.05em",
+                padding: "0.35em 1.1em",
+                borderRadius: "8px",
+                background: "linear-gradient(90deg,#6366f1 60%,#a56cf5 100%)",
                 color: "#fff",
                 border: "none",
                 fontWeight: "bold",
                 cursor: "pointer",
                 margin: 0,
-                boxShadow: "0 1px 5px #0003"
+                boxShadow: "0 1px 8px #6366f155",
+                transition: "background 0.18s, box-shadow 0.12s, transform 0.09s",
+                outline: "none",
+                pointerEvents: "auto",
               }}
+              onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
+              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
             />
           </span>
         </div>
