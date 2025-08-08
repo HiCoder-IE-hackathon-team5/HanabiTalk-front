@@ -1,93 +1,89 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 type MessageInputProps = {
   sendMessage: (data: { message: string; color: string }) => void;
+  color: string;
+  setColor: Dispatch<SetStateAction<string>>;
+  colorList: { code: string; name: string }[];
 };
 
-const MessageInput: React.FC<MessageInputProps> = ({ sendMessage }) => {
-  const [message, setMessage] = useState("");
-  const [color, setColor] = useState("#ff69b4");
+export default function MessageInput({
+  sendMessage,
+  color,
+  setColor,
+  colorList,
+}: MessageInputProps) {
+  const [value, setValue] = useState("");
 
-  const handleSend = () => {
-    if (!message.trim()) return;
-    sendMessage({ message, color });
-    setMessage("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !(e.nativeEvent as any).isComposing) {
-      handleSend();
+  function handleSend() {
+    if (value.trim() !== "") {
+      sendMessage({ message: value, color });
+      setValue("");
     }
-  };
+  }
 
   return (
     <div
       style={{
+        width: "100%",
+        background: "#fff",
+        borderTop: "1px solid #ddd",
+        padding: "12px 16px",
         display: "flex",
-        gap: "10px",
-        marginTop: "16px",
+        gap: 8,
         alignItems: "center",
-        background: "rgba(40,48,64,0.96)",
-        borderRadius: "9px",
-        boxShadow: "0 2px 12px #0004",
-        padding: "10px 12px",
-        border: "1.5px solid #5858a7",
       }}
     >
-      <input
-        value={message}
-        onChange={e => setMessage(e.target.value)}
-        placeholder="メッセージを入力"
-        onKeyDown={handleKeyDown}
-        style={{
-          flex: 1,
-          padding: "11px 12px",
-          borderRadius: "7px",
-          border: "1.5px solid #bdbddb",
-          background: "#23233b",
-          color: "#f7f7fd",
-          fontSize: "1.08em",
-          outline: "none",
-          boxShadow: "0 1px 4px #0002",
-        }}
-      />
-      <input
-        type="color"
+      {/* カラー選択 */}
+      <select
         value={color}
         onChange={e => setColor(e.target.value)}
-        title="花火の色"
         style={{
-          width: "36px",
-          height: "36px",
-          border: "none",
-          borderRadius: "50%",
-          boxShadow: "0 1px 7px #0006",
-          background: "none",
-          cursor: "pointer",
+          marginRight: "8px",
+          borderRadius: "6px",
+          border: "1px solid #ccc",
+          padding: "4px 8px",
+          background: "#fafaff",
+        }}
+      >
+        {colorList.map(c => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        style={{
+          flex: 1,
+          padding: "10px 12px",
+          fontSize: 16,
+          borderRadius: 8,
+          border: "1px solid #ccc",
+        }}
+        placeholder="メッセージを入力..."
+        onKeyDown={e => {
+          if (e.key === "Enter") handleSend();
         }}
       />
       <button
         onClick={handleSend}
         style={{
-          background: "linear-gradient(90deg, #6366f1 60%, #a56cf5 100%)",
-          color: "white",
-          border: "none",
-          padding: "10px 22px",
-          borderRadius: "7px",
+          background: "#4ecdc4",
+          color: "#222",
           fontWeight: 600,
-          fontSize: "1.05em",
+          border: "none",
+          borderRadius: 8,
+          padding: "0.6em 1.2em",
+          fontSize: 16,
           cursor: "pointer",
-          boxShadow: "0 2px 10px #6161e544",
-          transition: "background 0.17s, boxShadow 0.1s, transform 0.08s",
         }}
-        onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
-        onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
-        onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
       >
         送信
       </button>
     </div>
   );
-};
-
-export default MessageInput;
+}

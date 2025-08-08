@@ -1,32 +1,25 @@
 import { useEffect, useState, useRef } from "react";
 
-// 花火パラメータ型
+export type FireworkShape =
+  | "circle"
+  | "heart"
+  | "star"
+  | "clover"
+  | "triangle"
+  | "diamond"
+  | "hexagon"
+  | "peony"
+  | "chrysanthemum"
+  | "willow"
+  | "kamuro";
+
 type ParticleGroupParam = {
   count?: number;
-  threshold?: number;
-  velocityType?: "circle" | "heart" | "star";
-  velocityRange?: [number, number];
-  velocityMultiplier?: number;
+  velocityType?: FireworkShape;
+  velocity?: number;
   gravity?: number;
-  lifespanDecrement?: number;
-  randomHue?: boolean;
-  hueRange?: [number, number];
-  saturation?: number;
-  brightness?: number;
-  strokeWeightValue?: number;
-  trail?: boolean;
-  historyLength?: number;
-  updateInterval?: number;
-  finish?: boolean;
-  finishThreshold?: number;
-  finishCount?: number;
-  finishStrokeWeightValue?: number;
-  finishColor?: boolean;
-  finishHueRange?: [number, number];
-  finishSaturation?: number;
-  finishBrightness?: number;
-  offsetX?: number;
-  offsetY?: number;
+  color?: string;
+  expand?: number; // for kamuro, willow, etc.
 };
 
 type Particle = {
@@ -36,138 +29,141 @@ type Particle = {
   vy: number;
   opacity: number;
   size: number;
-  a: number;
-  w: number;
-  frame: number;
   color: string;
-  exploded?: boolean;
-  history?: { x: number; y: number; opacity: number }[];
-  groupParam: ParticleGroupParam;
+  history: { x: number; y: number; opacity: number }[];
+  frame: number;
   lifespan: number;
-  finishLocation?: { x: number; y: number };
 };
 
-const DEFAULT_PARAM: ParticleGroupParam = {
-  threshold: 100,
-  count: 150,
-  velocityType: "circle",
-  velocityRange: [1, 15],
-  velocityMultiplier: 0.9,
-  gravity: 0.05,
-  lifespanDecrement: 2,
-  randomHue: true,
-  hueRange: [0, 360],
-  saturation: 100,
-  brightness: 100,
-  strokeWeightValue: 4,
-  trail: false,
-  historyLength: 10,
-  updateInterval: 2,
-  finish: false,
-  finishThreshold: 0,
-  finishCount: 1,
-  finishColor: true,
-  finishHueRange: [0, 360],
-  finishSaturation: 50,
-  finishBrightness: 100,
+const SHAPE_CONFIG: Record<FireworkShape, ParticleGroupParam> = {
+  circle:   { count: 40, velocityType: "circle", velocity: 7, gravity: 0.045 },
+  heart:    { count: 48, velocityType: "heart", velocity: 7, gravity: 0.045 },
+  star:     { count: 48, velocityType: "star", velocity: 7, gravity: 0.045 },
+  clover:   { count: 48, velocityType: "clover", velocity: 7, gravity: 0.045 },
+  triangle: { count: 36, velocityType: "triangle", velocity: 7, gravity: 0.045 },
+  diamond:  { count: 48, velocityType: "diamond", velocity: 7, gravity: 0.045 },
+  hexagon:  { count: 54, velocityType: "hexagon", velocity: 7, gravity: 0.045 },
+  // オーソドックスな花火
+  peony:        { count: 60, velocityType: "peony", velocity: 7, gravity: 0.045 },
+  chrysanthemum:{ count: 60, velocityType: "chrysanthemum", velocity: 7, gravity: 0.045, expand: 1.16 },
+  willow:       { count: 68, velocityType: "willow", velocity: 7, gravity: 0.065, expand: 0.86 },
+  kamuro:       { count: 68, velocityType: "kamuro", velocity: 7, gravity: 0.080, expand: 0.6 },
 };
 
-const RANDOM_PARAMS: ParticleGroupParam[] = [
-  // 円
-  { ...DEFAULT_PARAM, velocityType: "circle" },
-  // ハート
-  { ...DEFAULT_PARAM, velocityType: "heart", count: 100, hueRange: [320, 360], saturation: 80 },
-  // 星
-  { ...DEFAULT_PARAM, velocityType: "star", count: 70, velocityRange: [3, 8], hueRange: [40, 60], saturation: 85 },
-  // 尾引き円
-  { ...DEFAULT_PARAM, trail: true, historyLength: 20, velocityType: "circle", count: 110, strokeWeightValue: 2.5, velocityRange: [5, 10], randomHue: false, hueRange: [180, 220], saturation: 90 },
-  // 2重円
-  { ...DEFAULT_PARAM, count: 120, velocityType: "circle", velocityRange: [2, 5], finish: true, finishCount: 2, finishColor: false, finishHueRange: [0, 360] },
-  // 3重星
-  { ...DEFAULT_PARAM, velocityType: "star", count: 90, velocityRange: [2, 4], finish: true, finishCount: 3, finishColor: false, finishHueRange: [200, 300] },
-  // 虹色円
-  { ...DEFAULT_PARAM, velocityType: "circle", count: 160, randomHue: false, hueRange: [0, 360], saturation: 100, brightness: 100 },
-  // ゴールド冠
-  { ...DEFAULT_PARAM, velocityType: "circle", count: 80, trail: true, velocityRange: [1, 9], randomHue: false, hueRange: [40, 60], brightness: 80, gravity: 0.13 },
-  // 柳
-  { ...DEFAULT_PARAM, velocityType: "circle", count: 60, trail: true, velocityRange: [2, 6], randomHue: false, hueRange: [100, 140], brightness: 70, gravity: 0.18 },
-  // 赤い多重ハート
-  { ...DEFAULT_PARAM, velocityType: "heart", count: 140, trail: true, randomHue: false, hueRange: [350, 360], gravity: 0.06, finish: true, finishCount: 1, finishColor: false, finishHueRange: [340, 360] },
-];
-
-// ランダムで複数グループを作る
-function createRandomFireworkGroups(x: number, y: number, color: string) {
-  // 1～3グループ合成
-  const groupNum = 1 + Math.floor(Math.random() * 3);
-  const params: ParticleGroupParam[] = [];
-  for (let i = 0; i < groupNum; i++) {
-    // ランダム選択し、オフセットもランダム
-    const base = RANDOM_PARAMS[Math.floor(Math.random() * RANDOM_PARAMS.length)];
-    params.push({
-      ...base,
-      offsetX: (Math.random() - 0.5) * 70,
-      offsetY: (Math.random() - 0.5) * 70,
-    });
-  }
-  return params.map((p) => makeParticles(x, y, color, p)).flat();
+function getColor(base: string) {
+  return {
+    main: base,
+    glow: "rgba(255,255,255,0.20)",
+  };
 }
 
-// ベクトル生成
+// 花火のパターン別初速を生成
 function randomVelocity(param: ParticleGroupParam, i: number, n: number) {
   const vt = param.velocityType || "circle";
-  const [min, max] = param.velocityRange ?? [3, 6];
-  const speed = min + Math.random() * (max - min);
+  const speed = param.velocity ?? 7;
+  // 円だけ密度均しのためランダム半径、他は1
+  const radius = (vt === "circle") ? (0.4 + 0.6 * Math.random()) : 1;
+
+  // --- オーソドックスな花火 ---
+  if (vt === "peony") {
+    // 芍薬: ほぼ球状、円と同じ
+    const angle = (2 * Math.PI * i) / n;
+    return { vx: Math.cos(angle) * speed * radius, vy: Math.sin(angle) * speed * radius };
+  }
+  if (vt === "chrysanthemum") {
+    // 菊: 芍薬＋膨張、粒子が尾を引く
+    const angle = (2 * Math.PI * i) / n;
+    const expand = param.expand ?? 1.2;
+    return { vx: Math.cos(angle) * speed * expand, vy: Math.sin(angle) * speed * expand };
+  }
+  if (vt === "willow") {
+    // 柳: 低めの初速、重力強め、尾を引く
+    const angle = (2 * Math.PI * i) / n;
+    const expand = param.expand ?? 0.85;
+    return { vx: Math.cos(angle) * speed * expand, vy: Math.sin(angle) * speed * expand };
+  }
+  if (vt === "kamuro") {
+    // 冠: さらに膨張抑え＆重力強め
+    const angle = (2 * Math.PI * i) / n;
+    const expand = param.expand ?? 0.6;
+    return { vx: Math.cos(angle) * speed * expand, vy: Math.sin(angle) * speed * expand };
+  }
+
   if (vt === "circle") {
     const angle = (2 * Math.PI * i) / n;
-    return { vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+    return { vx: Math.cos(angle) * speed * radius, vy: Math.sin(angle) * speed * radius };
   }
   if (vt === "heart") {
     const t = (2 * Math.PI * i) / n;
     const xh = 16 * Math.pow(Math.sin(t), 3);
-    const yh = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-    return { vx: xh * speed * 0.1, vy: -yh * speed * 0.1 };
+    const yh =
+      13 * Math.cos(t) -
+      5 * Math.cos(2 * t) -
+      2 * Math.cos(3 * t) -
+      Math.cos(4 * t);
+    return { vx: xh * speed * 0.11 * radius, vy: -yh * speed * 0.11 * radius };
   }
   if (vt === "star") {
-    const step = 2;
-    const angle = ((i * step) % n) * (2 * Math.PI / n);
-    return { vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+    const spikes = 5;
+    const step = Math.PI / spikes;
+    const r1 = 1, r2 = 0.45;
+    const useR = i % 2 === 0 ? r1 : r2;
+    const angle = (Math.PI / 2) + (i * step);
+    return { vx: Math.cos(angle) * speed * useR * radius, vy: Math.sin(angle) * speed * useR * radius };
   }
-  return { vx: Math.cos(2 * Math.PI * i / n) * speed, vy: Math.sin(2 * Math.PI * i / n) * speed };
+  if (vt === "clover") {
+    const t = (2 * Math.PI * i) / n;
+    const r = 1 + 0.7 * Math.sin(3 * t);
+    return { vx: Math.cos(t) * speed * r * radius, vy: Math.sin(t) * speed * r * radius };
+  }
+  if (vt === "triangle") {
+    const tri = Math.floor((i / n) * 3);
+    const a = (2 * Math.PI * tri) / 3;
+    return { vx: Math.cos(a) * speed * radius, vy: Math.sin(a) * speed * radius };
+  }
+  if (vt === "diamond") {
+    const angle = (2 * Math.PI * i) / n;
+    const r = Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle));
+    return { vx: Math.cos(angle) * speed * r * radius, vy: Math.sin(angle) * speed * r * radius };
+  }
+  if (vt === "hexagon") {
+    const hex = Math.floor((i / n) * 6);
+    const a = (2 * Math.PI * hex) / 6;
+    return { vx: Math.cos(a) * speed * radius, vy: Math.sin(a) * speed * radius };
+  }
+  // pistil, etc. その他はcircle同等
+  const angle = (2 * Math.PI * i) / n;
+  return { vx: Math.cos(angle) * speed * radius, vy: Math.sin(angle) * speed * radius };
 }
 
-// 粒子グループ生成
-function makeParticles(x: number, y: number, baseColor: string, param: ParticleGroupParam): Particle[] {
-  const n = param.count ?? 60;
-  let color = baseColor;
-  if (param.randomHue) {
-    const h = Math.floor(Math.random() * 360);
-    color = `hsl(${h},${param.saturation ?? 100}%,${param.brightness ?? 100}%)`;
-  }
-  if (param.hueRange && !param.randomHue) {
-    const h = param.hueRange[0] + Math.random() * (param.hueRange[1] - param.hueRange[0]);
-    color = `hsl(${Math.floor(h)},${param.saturation ?? 100}%,${param.brightness ?? 100}%)`;
-  }
-  return Array.from({ length: n }, (_, i) => {
-    const { vx, vy } = randomVelocity(param, i, n);
-    return {
-      x: x + (param.offsetX ?? 0),
-      y: y + (param.offsetY ?? 0),
-      vx,
-      vy,
+function createParticles(
+  x: number,
+  y: number,
+  color: string,
+  _size: number,
+  shape: FireworkShape
+): Particle[] {
+  const config = SHAPE_CONFIG[shape];
+  const n = config.count || 40;
+  const result: Particle[] = [];
+  const colorSet = getColor(color);
+
+  for (let i = 0; i < n; i++) {
+    const { vx, vy } = randomVelocity(config, i, n);
+    result.push({
+      x, y,
+      vx, vy,
       opacity: 1,
-      size: 1,
-      a: 255,
-      w: param.strokeWeightValue ?? 4,
-      frame: 0,
-      color,
-      groupParam: param,
-      lifespan: 255,
+      size: 1.1 + Math.random() * 0.5,
+      color: colorSet.main,
       history: [],
-    };
-  });
+      frame: 0,
+      lifespan: 180,
+    });
+  }
+  return result;
 }
 
-// 打ち上げ演出(Rocket)→爆発
 export default function Firework({
   x = window.innerWidth / 2,
   y = window.innerHeight / 3,
@@ -176,6 +172,7 @@ export default function Firework({
   launchSpeed = 1,
   onEnd,
   onExplode,
+  shape = "circle",
 }: {
   x?: number;
   y?: number;
@@ -184,29 +181,29 @@ export default function Firework({
   launchSpeed?: number;
   onEnd?: () => void;
   onExplode?: (x: number, y: number) => void;
+  shape?: FireworkShape;
 }) {
   const [state, setState] = useState<"launch" | "explode">("launch");
   const [rocket, setRocket] = useState<{ x: number; y: number; vy: number }>({
     x,
     y: window.innerHeight - 30,
-    vy: -12 * size * launchSpeed * (0.9 + Math.random() * 0.3),
+    vy: -13 * size * launchSpeed,
   });
   const [particles, setParticles] = useState<Particle[]>([]);
   const [show, setShow] = useState(true);
   const explodedRef = useRef(false);
 
-  // 打ち上げ
   useEffect(() => {
     if (state !== "launch") return;
     let rafId: number;
     const animate = () => {
       setRocket((prev) => {
         const nextY = prev.y + prev.vy;
-        const nextVy = prev.vy + 0.23 * size; // 重力
-        if (nextY <= y) {
+        const nextVy = prev.vy + 0.22 * size;
+        if (nextY <= y || nextVy >= 0 || nextY < 0) {
           setState("explode");
           if (onExplode && !explodedRef.current) {
-            onExplode(prev.x, nextY);
+            onExplode(prev.x, Math.max(nextY, y));
             explodedRef.current = true;
           }
           return prev;
@@ -218,14 +215,11 @@ export default function Firework({
             vx: 0,
             vy: 0,
             opacity: 1,
-            size: 1,
-            a: 255,
-            w: 9 * size,
-            frame: 0,
-            color,
-            groupParam: DEFAULT_PARAM,
-            lifespan: 255,
+            size: 2,
+            color: "#fff",
             history: [],
+            frame: 0,
+            lifespan: 60,
           },
         ]);
         return { ...prev, y: nextY, vy: nextVy };
@@ -234,17 +228,14 @@ export default function Firework({
     };
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line
-  }, [state, y, color, size, launchSpeed]);
+  }, [state, y, size, launchSpeed]);
 
-  // 爆発
   useEffect(() => {
     if (state !== "explode") return;
-    setParticles(createRandomFireworkGroups(rocket.x, y, color));
+    setParticles(createParticles(rocket.x, y, color, size, shape));
     // eslint-disable-next-line
-  }, [state, rocket.x, y, color]);
+  }, [state, rocket.x, y, color, size, shape]);
 
-  // 爆発アニメ
   useEffect(() => {
     if (state !== "explode") return;
     if (particles.length === 0) return;
@@ -254,24 +245,16 @@ export default function Firework({
         const arr: Particle[] = [];
         for (let p of prev) {
           p.frame++;
-          // 残像
-          if (p.groupParam.trail) {
-            p.history = [...(p.history ?? []), { x: p.x, y: p.y, opacity: p.opacity }];
-            if (p.history.length > (p.groupParam.historyLength || 10)) p.history.shift();
-          }
-          // 位置
+          p.history = [...(p.history ?? []), { x: p.x, y: p.y, opacity: p.opacity }];
+          if (p.history.length > 10) p.history.shift();
           p.x += p.vx;
           p.y += p.vy;
-          // 減速
-          p.vx *= p.groupParam.velocityMultiplier ?? 0.9;
-          p.vy *= p.groupParam.velocityMultiplier ?? 0.9;
-          // 重力
-          p.vy += p.groupParam.gravity ?? 0.05;
-          // 寿命
-          p.lifespan -= p.groupParam.lifespanDecrement ?? 2;
-          // 消える演出
+          p.vx *= 0.92;
+          p.vy *= 0.92;
+          p.vy += 0.045;
+          p.lifespan -= 3.2;
           if (p.lifespan < 0) continue;
-          p.opacity = Math.max(0, p.lifespan / 255);
+          p.opacity = Math.max(0, p.lifespan / 180);
           arr.push(p);
         }
         if (arr.length === 0) {
@@ -285,12 +268,10 @@ export default function Firework({
     };
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line
   }, [state, particles.length, onEnd]);
 
   if (!show) return null;
 
-  // ロケット/残像描画
   if (state === "launch") {
     return (
       <div className="fixed inset-0 pointer-events-none z-50">
@@ -302,17 +283,17 @@ export default function Firework({
                 position: "absolute",
                 left: `${p.x}px`,
                 top: `${p.y}px`,
-                width: `${p.w * 0.7}px`,
-                height: `${p.w * 2}px`,
-                borderRadius: "40% 40% 40% 40%/60% 60% 60% 60%",
-                background: p.color,
-                opacity: 0.7,
-                boxShadow: `0 0 20px 7px ${p.color}bb`,
+                width: `${p.size * 10}px`,
+                height: `${p.size * 18}px`,
+                borderRadius: "40%",
+                background: "#fff",
+                opacity: 0.35,
+                boxShadow: `0 0 8px 2px #fff`,
                 transform: "translate(-50%, -50%)",
-                filter: "blur(1.2px)",
+                filter: "blur(0.7px)",
                 pointerEvents: "none",
                 zIndex: 51,
-                transition: "background 0.14s",
+                transition: "background 0.12s",
               }}
             />
           ))}
@@ -321,50 +302,46 @@ export default function Firework({
     );
   }
 
-  // 爆発描画
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
       <div className="absolute w-full h-full left-0 top-0">
         {particles.map((p, i) => (
           <div key={i}>
-            {/* 残像 */}
-            {p.groupParam.trail &&
-              (p.history ?? []).map((h, j) => (
-                <div
-                  key={j}
-                  style={{
-                    position: "absolute",
-                    left: `${h.x}px`,
-                    top: `${h.y}px`,
-                    width: `${p.w}px`,
-                    height: `${p.w}px`,
-                    borderRadius: "50%",
-                    background: p.color,
-                    opacity: h.opacity * 0.5,
-                    boxShadow: `0 0 20px 7px ${p.color}77`,
-                    transform: "translate(-50%, -50%)",
-                    filter: "blur(2.5px)",
-                    pointerEvents: "none",
-                    zIndex: 51,
-                  }}
-                />
-              ))}
-            {/* 本体 */}
+            {(p.history ?? []).map((h, j) => (
+              <div
+                key={j}
+                style={{
+                  position: "absolute",
+                  left: `${h.x}px`,
+                  top: `${h.y}px`,
+                  width: `${p.size * 7}px`,
+                  height: `${p.size * 7}px`,
+                  borderRadius: "50%",
+                  background: p.color,
+                  opacity: h.opacity * 0.18,
+                  filter: "blur(2px)",
+                  transform: "translate(-50%, -50%)",
+                  pointerEvents: "none",
+                  zIndex: 51,
+                }}
+              />
+            ))}
             <div
               style={{
                 position: "absolute",
                 left: `${p.x}px`,
                 top: `${p.y}px`,
-                width: `${p.w}px`,
-                height: `${p.w}px`,
+                width: `${p.size * 10}px`,
+                height: `${p.size * 10}px`,
                 borderRadius: "50%",
                 background: p.color,
+                boxShadow: `0 0 8px 4px ${p.color}`,
                 opacity: p.opacity,
-                boxShadow: `0 0 30px 12px ${p.color}88`,
+                filter: "blur(0.2px)",
                 transform: "translate(-50%, -50%)",
-                filter: "blur(0.8px)",
                 pointerEvents: "none",
                 zIndex: 52,
+                border: "none",
               }}
             />
           </div>
