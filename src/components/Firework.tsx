@@ -25,8 +25,8 @@ export type FireworkProps = {
   x: number;
   y: number;
   color: string;
-  size: number;        // 1.0 基準
-  duration: number;    // 秒
+  size: number;        // 1.0 基準（爆発半径スケールにも反映）
+  duration: number;    // 秒（寿命に反映）
   launchSpeed: number; // 0.7〜1.5 目安
   shape: FireworkShape;
   onEnd: () => void;
@@ -52,13 +52,31 @@ const PARTICLE_COUNTS: Record<FireworkShape, number> = {
   hexagon: 48,
 };
 
-function randomVelocity(shape: FireworkShape, i: number, n: number) {
-  const speed = BASE_SPEED;
+// 形ごとの平均半径の差を吸収して、基準サイズを揃えるための正規化係数
+// 数値は見た目基準の近似値です。必要に応じて微調整してください。
+const SHAPE_RADIUS_NORMALIZER: Record<FireworkShape, number> = {
+  classic: 1.20,  // 平均r≈0.83 を補正
+  circle: 1.00,   // 一様に1.0
+  kamuro: 1.18,   // 初速k=0.85 を補正
+  heart: 1.00,    // 心形kは見た目合わせ済み
+  star: 1.33,     // r1=1, r2=0.5 の平均0.75を補正
+  clover: 1.18,   // r≈0.85 を補正
+  diamond: 0.90,  // 平均rがやや>1 を抑制
+  hexagon: 1.00,  // 方向量子化のみで半径1
+};
 
+// 文字量に応じた爆発半径（初速）スケール
+function getExplosionSpeedScale(size: number) {
+  // size=1.0 -> 1.2倍, size=3.0 -> 2.0倍 くらいの伸び
+  // （サイズ段階を増やしたので、ここは滑らかでOK）
+  return Math.min(2.0, 0.8 + 0.4 * size);
+}
+
+function randomVelocity(shape: FireworkShape, i: number, n: number, speed: number) {
   switch (shape) {
     case "classic": {
       const a = Math.random() * Math.PI * 2;
-      const r = 0.5 + 0.5 * Math.sqrt(Math.random()); // 0.5..1.0
+      const r = 0.5 + 0.5 * Math.sqrt(Math.random()); // 0.5..1.0（外側寄り）
       return { vx: Math.cos(a) * speed * r, vy: Math.sin(a) * speed * r };
     }
     case "circle": {
@@ -67,14 +85,18 @@ function randomVelocity(shape: FireworkShape, i: number, n: number) {
     }
     case "kamuro": {
       const a = (2 * Math.PI * i) / n;
-      const k = 0.85;
+      const k = 0.85; // 形の粘り感（重さ）は残す
       return { vx: Math.cos(a) * speed * k, vy: Math.sin(a) * speed * k };
     }
     case "heart": {
       const t = (2 * Math.PI * i) / n;
       const xh = 16 * Math.pow(Math.sin(t), 3);
-      const yh = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-      const k = 0.11;
+      const yh =
+        13 * Math.cos(t) -
+        5 * Math.cos(2 * t) -
+        2 * Math.cos(3 * t) -
+        Math.cos(4 * t);
+      const k = 0.11; // 形状係数（輪郭維持）
       return { vx: xh * speed * k, vy: -yh * speed * k };
     }
     case "star": {
@@ -92,7 +114,8 @@ function randomVelocity(shape: FireworkShape, i: number, n: number) {
     }
     case "diamond": {
       const a = (2 * Math.PI * i) / n;
-      const r = Math.max(0.75, Math.abs(Math.cos(a)) + Math.abs(Math.sin(a)) * 0.75);
+      const r =
+        Math.max(0.75, Math.abs(Math.cos(a)) + Math.abs(Math.sin(a)) * 0.75);
       return { vx: Math.cos(a) * speed * r, vy: Math.sin(a) * speed * r };
     }
     case "hexagon": {
@@ -163,11 +186,15 @@ export default function Firework({
       const n = PARTICLE_COUNTS[shape];
       const arr: Particle[] = [];
 
-      // 爆発時の色は他の形と同様に props.color を使用
+      // 爆発時の色は props.color を使用
       const explosionCssColor = color;
 
+      // サイズ段階と形の正規化を考慮した初速
+      const base = BASE_SPEED * getExplosionSpeedScale(size);
+      const spd = base * SHAPE_RADIUS_NORMALIZER[shape];
+
       for (let i = 0; i < n; i++) {
-        const v = randomVelocity(shape, i, n);
+        const v = randomVelocity(shape, i, n, spd);
         arr.push({
           x,
           y,
@@ -197,7 +224,7 @@ export default function Firework({
           r.y += r.vy;
           r.vy += 0.22 * size;
 
-          // 尾（従来同様 白で統一）
+          // 尾（白で統一）
           tailRef.current = [
             {
               x: r.x,
@@ -221,6 +248,7 @@ export default function Firework({
           }
         } else {
           const pArr = particlesRef.current;
+          // duration に比例してゆっくり減衰
           const decay = stepMs / (duration * 1000);
           let alive = 0;
 

@@ -32,13 +32,30 @@ function getCentralY() {
   const max = window.innerHeight * 0.60;
   return Math.random() * (max - min) + min;
 }
+
+// 段階（ステップ）数を増やしてサイズを量子化（例: 10段階）
+function quantize(value: number, min: number, max: number, steps: number) {
+  const clamped = Math.max(min, Math.min(max, value));
+  const t = (clamped - min) / (max - min);
+  const idx = Math.round(t * (steps - 1));
+  return min + (idx / (steps - 1)) * (max - min);
+}
+
+// 文字量が増えるほど「大きく」なるが、連続値ではなく段階的に増えるように
 function getFireworkSize(message: string) {
-  return Math.min(2.5, 1.0 + message.length / 40);
+  const len = [...message].length; // 絵文字なども1文字としてカウント
+  const raw = Math.min(3.0, 1.0 + len / 30); // 1.0〜3.0に連続スケール
+  return quantize(raw, 1.0, 3.0, 10);        // ← 10段階に量子化
 }
+
 function getFireworkDuration(message: string) {
-  return Math.max(3, Math.min(9, message.length * 0.06));
+  const len = [...message].length;
+  // 消える速度（寿命）は連続スケールのままでもOK（必要ならこちらも段階化可能）
+  return Math.max(3, Math.min(12, 3 + len * 0.08));
 }
+
 function getFireworkLaunchSpeed(message: string) {
+  // 打ち上げ速度は従来どおり（必要に応じて調整可）
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
@@ -52,7 +69,7 @@ const NON_CLASSIC_SHAPES: FireworkShape[] = [
   "diamond",
   "hexagon",
 ];
-// 約5割で classic を、それ以外は残りの形から等確率で選ぶ
+// 約8割で classic（必要なら 0.5 で5割に）
 function getRandomShape(): FireworkShape {
   if (Math.random() < 0.8) return "classic";
   return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
@@ -87,10 +104,10 @@ export default function ChatPage() {
         color: latest.color,
         x: getCentralX(),
         y: getCentralY(),
-        size: getFireworkSize(latest.message),
-        duration: getFireworkDuration(latest.message),
+        size: getFireworkSize(latest.message),         // ← 段階化サイズ
+        duration: getFireworkDuration(latest.message), // ← 長文ほどゆっくり消える
         launchSpeed: getFireworkLaunchSpeed(latest.message),
-        shape: getRandomShape(), // メッセージごとにランダム形状（約5割で classic）
+        shape: getRandomShape(),
       }
     ]);
   }, [messages]);
@@ -280,11 +297,12 @@ function FireworkWithMessage({
             height: "min(34vw, 360px)",
             borderRadius: "50%",
             background: "none",
-            color: "#eaf1ff",
+            color: color,
+            textShadow:
+              "0 0 2px #fff, 0 0 10px currentColor, 0 0 22px currentColor, 0 0 36px currentColor, 0 2px 4px rgba(0,0,0,.65)",
+            WebkitTextStroke: "0.6px rgba(0,0,0,0.25)",
             fontWeight: 700,
             fontSize: "clamp(1rem, 3.2vw, 2.2rem)",
-            textShadow:
-              "0 0 2px #fff, 0 0 8px rgba(255,255,255,.9), 0 0 18px rgba(183,205,255,.9), 0 2px 4px rgba(0,0,0,.65)",
             pointerEvents: "none",
             zIndex: 52,
             display: "flex",
