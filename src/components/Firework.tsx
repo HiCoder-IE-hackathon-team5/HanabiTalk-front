@@ -8,7 +8,8 @@ export type FireworkShape =
   | "clover"
   | "diamond"
   | "hexagon"
-  | "kamuro";
+  | "kamuro"
+  | "w"; // 「w」文字形
 
 type Particle = {
   x: number;
@@ -26,30 +27,31 @@ export type FireworkProps = {
   y: number;         // 爆発させたい目標Y
   color: string;
   size: number;      // 1.0 基準（爆発半径スケールにも反映）
-  duration: number;  // 秒（寿命に反映）← 短くすると平均負荷が下がる（余韻短く）
+  duration: number;  // 秒（寿命に反映）
   launchSpeed: number; // 0.7〜1.5 目安（初速へは弱めに反映）
   shape: FireworkShape;
   onEnd: () => void;
   onExplode: () => void;
 };
 
-// 描画FPS（下げるほど軽いがカクつき増） ← 調整ポイント: 24 → 20 へ
+// 描画FPS（下げるほど軽いがカクつき増）
 const DRAW_FPS = 20;
 const DRAW_INTERVAL = 1000 / DRAW_FPS;
 
-// トレイル履歴数（層数を減らすと軽いが尾が短/薄に） ← 調整ポイント: 4 → 3
+// トレイル履歴数（層数を減らすと軽いが尾が短/薄に）
 const HISTORY_LEN = 3;
 
 const UNIFORM_GRAVITY = 0.045;
 const FRICTION = 0.92;
 
-// 初速の基準（下げると広がりが控えめ＆負荷減） ← 調整ポイント: 7 → 6.5
+// 初速の基準（下げると広がりが控えめ＆負荷減）
 const BASE_SPEED = 6.5;
 
 // 上昇の減速（「ゆっくり上がる」を維持）
-const ROCKET_DECEL = 0.18; // 旧: 0.22
+const ROCKET_DECEL = 0.18;
 
-// 粒子数（減らすと軽いが密度低下） ← 調整ポイント: 約10〜20%減
+// 粒子数（減らすと軽いが密度低下）
+// 「w」はほんの少しだけ軽量化（72 → 64）
 const PARTICLE_COUNTS: Record<FireworkShape, number> = {
   classic: 56, // 64 → 56
   circle: 32,  // 36 → 32
@@ -59,6 +61,7 @@ const PARTICLE_COUNTS: Record<FireworkShape, number> = {
   clover: 36,  // 44 → 36
   diamond: 36, // 42 → 36
   hexagon: 40, // 48 → 40
+  w: 48,       // 72 → 48
 };
 
 // 形ごとの平均半径の差を吸収
@@ -71,6 +74,7 @@ const SHAPE_RADIUS_NORMALIZER: Record<FireworkShape, number> = {
   clover: 1.18,
   diamond: 0.90,
   hexagon: 1.00,
+  w: 1.10, // 「w」はやや大きめに広げて視認性を上げる
 };
 
 // 文字量に応じた爆発半径（初速）スケール
@@ -81,21 +85,100 @@ function getExplosionSpeedScale(size: number) {
 // 目標Yにほぼ到達するよう、必要な初速を目標Yから逆算（離散系の近似）
 function computeInitialVyForTarget(targetY: number, size: number, launchSpeed: number) {
   const startY = typeof window !== "undefined" ? window.innerHeight - 30 : 600;
-  const a = ROCKET_DECEL * size;                   // 毎ステップの上向き速度減少量
-  const deltaY = Math.max(0, startY - targetY);    // 登りたい距離（px）
-  // 連続近似: v0^2 ≈ 2*a*Δy（v0<0 にする）
+  const a = ROCKET_DECEL * size;
+  const deltaY = Math.max(0, startY - targetY);
   const v0mag = Math.sqrt(Math.max(2 * a * deltaY, 0.01));
-  // launchSpeed は上下のバラつきが偏らないよう弱めに反映（±10%に制限）
   const ls = Math.max(0.9, Math.min(1.1, launchSpeed));
-  const FUDGE = 0.96; // 少し抑えて「ゆっくり」見せる
+  const FUDGE = 0.96;
   return -v0mag * FUDGE * ls;
+}
+
+/**
+ * 「w」骨格（A→B→C→D→E）上の等間隔点と、その法線方向の等間隔行（rows）を生成。
+ * - 画面座標系（上が負Y, 下が正Y）に合わせた正規化座標を返す。
+ */
+function wEvenPoints(n: number, rows = 3, thickness = 0.16) {
+  // 背の低い「w」っぽく
+  const topY = -0.42;
+  const bottomY = 0.52;
+  const pts = [
+    { x: -1.0, y: topY },
+    { x: -0.5, y: bottomY },
+    { x: 0.0, y: topY },
+    { x: 0.5, y: bottomY },
+    { x: 1.0, y: topY },
+  ];
+  type Vec = { x: number; y: number };
+  const segs: Array<{ P: Vec; Q: Vec; len: number }> = [];
+  let totalLen = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const P = pts[i], Q = pts[i + 1];
+    const len = Math.hypot(Q.x - P.x, Q.y - P.y);
+    segs.push({ P, Q, len });
+    totalLen += len;
+  }
+
+  // t(0..1) → 点・法線を得る
+  function pointAndNormalAt(t: number) {
+    let d = t * totalLen;
+    let P = segs[0].P, Q = segs[0].Q, len = segs[0].len;
+    for (let i = 0; i < segs.length; i++) {
+      if (d <= segs[i].len || i === segs.length - 1) {
+        P = segs[i].P; Q = segs[i].Q; len = segs[i].len;
+        break;
+      }
+      d -= segs[i].len;
+    }
+    const u = len > 0 ? d / len : 0;
+    const px = P.x + (Q.x - P.x) * u;
+    const py = P.y + (Q.y - P.y) * u;
+    const dx = Q.x - P.x;
+    const dy = Q.y - P.y;
+    const L = Math.hypot(dx, dy) || 1;
+    // 右手系の法線（上:負Y/下:正Yの画面座標系）
+    const nx = -dy / L;
+    const ny = dx / L;
+    return { px, py, nx, ny };
+  }
+
+  // 行ごとの配分（等分＋余りは先行行へ）
+  const counts: number[] = [];
+  const base = Math.floor(n / rows);
+  let rem = n % rows;
+  for (let r = 0; r < rows; r++) {
+    counts[r] = base + (rem > 0 ? 1 : 0);
+    rem--;
+  }
+
+  const out: Array<{ ox: number; oy: number }> = [];
+  for (let r = 0; r < rows; r++) {
+    const kMax = counts[r];
+    if (kMax <= 0) continue;
+    // 行のオフセット（-thickness..+thicknessの等間隔）
+    const rowT = rows === 1 ? 0 : (r / (rows - 1)) * 2 - 1; // -1..+1
+    const offset = thickness * rowT;
+    for (let k = 0; k < kMax; k++) {
+      // 骨格上の等間隔（中心寄せ）
+      const t = (k + 0.5) / kMax;
+      const { px, py, nx, ny } = pointAndNormalAt(t);
+      // わずかな秩序付きジッタ（行と列で位相を変える）
+      const jitter = 0.008;
+      const jx = Math.sin((k + 1) * 2.399) * jitter * 0.5; // 擬似乱数（決定的）
+      const jy = Math.cos((r + 1) * 1.731) * jitter * 0.5;
+
+      const ox = px + nx * offset + jx;
+      const oy = py + ny * offset + jy;
+      out.push({ ox, oy });
+    }
+  }
+  return out;
 }
 
 function randomVelocity(shape: FireworkShape, i: number, n: number, speed: number) {
   switch (shape) {
     case "classic": {
       const a = Math.random() * Math.PI * 2;
-      const r = 0.5 + 0.5 * Math.sqrt(Math.random()); // 0.5..1.0（外側寄り）
+      const r = 0.5 + 0.5 * Math.sqrt(Math.random());
       return { vx: Math.cos(a) * speed * r, vy: Math.sin(a) * speed * r };
     }
     case "circle": {
@@ -128,19 +211,22 @@ function randomVelocity(shape: FireworkShape, i: number, n: number, speed: numbe
     }
     case "clover": {
       const t = (2 * Math.PI * i) / n;
-      const r = 0.7 + (0.3 * (1 + Math.sin(3 * t))) / 2; // 0.7..1.0
+      const r = 0.7 + (0.3 * (1 + Math.sin(3 * t))) / 2;
       return { vx: Math.cos(t) * speed * r, vy: Math.sin(t) * speed * r };
     }
     case "diamond": {
       const a = (2 * Math.PI * i) / n;
-      const r =
-        Math.max(0.75, Math.abs(Math.cos(a)) + Math.abs(Math.sin(a)) * 0.75);
+      const r = Math.max(0.75, Math.abs(Math.cos(a)) + Math.abs(Math.sin(a)) * 0.75);
       return { vx: Math.cos(a) * speed * r, vy: Math.sin(a) * speed * r };
     }
     case "hexagon": {
       const hex = Math.floor((i / n) * 6);
       const a = (2 * Math.PI * hex) / 6;
       return { vx: Math.cos(a) * speed, vy: Math.sin(a) * speed };
+    }
+    case "w": {
+      // 「w」は位置を等間隔で直置きするため速度はほぼ不要
+      return { vx: 0, vy: 0 };
     }
   }
 }
@@ -167,6 +253,7 @@ export default function Firework({
   const particlesRef = useRef<Particle[]>([]);
   const explodedRef = useRef(false);
   const lastDrawRef = useRef<number>(performance.now());
+  const shapeRef = useRef<FireworkShape>(shape); // 物理ループから参照
 
   const onEndRef = useRef(onEnd);
   const onExplodeRef = useRef(onExplode);
@@ -174,6 +261,10 @@ export default function Firework({
     onEndRef.current = onEnd;
     onExplodeRef.current = onExplode;
   }, [onEnd, onExplode]);
+
+  useEffect(() => {
+    shapeRef.current = shape;
+  }, [shape]);
 
   useEffect(() => {
     phaseRef.current = "launch";
@@ -205,23 +296,46 @@ export default function Firework({
       const arr: Particle[] = [];
 
       const explosionCssColor = color;
-      // BASE_SPEED（初速の基準）を下げると広がり控えめ＆負荷減
       const base = BASE_SPEED * getExplosionSpeedScale(size);
       const spd = base * SHAPE_RADIUS_NORMALIZER[shape];
 
-      for (let i = 0; i < n; i++) {
-        const v = randomVelocity(shape, i, n, spd);
-        arr.push({
-          x,
-          y,
-          vx: v.vx,
-          vy: v.vy,
-          life: 1,
-          size: 1.1 + Math.random() * 0.5,
-          color: explosionCssColor,
-          history: [],
-        });
+      if (shape === "w") {
+        // 等間隔配置で「w」をくっきり描く（秩序ある配置）
+        const offsets = wEvenPoints(n, 3, 0.16); // rows=3, 太さ=0.16
+        const R = spd * 7.0; // 正規化座標 → ピクセル半径
+        for (let i = 0; i < n; i++) {
+          const o = offsets[i];
+          // 軽いきらめきのみ（形を崩さない微小速度）
+          const jx = (Math.sin(i * 1.7) * 0.5 + 0.5) * 0.2 - 0.1;
+          const jy = (Math.cos(i * 1.3) * 0.5 + 0.5) * 0.2 - 0.1;
+          arr.push({
+            x: x + o.ox * R,
+            y: y + o.oy * R,
+            vx: jx,
+            vy: jy,
+            life: 1,
+            size: 1.1 + Math.random() * 0.5,
+            color: explosionCssColor,
+            history: [],
+          });
+        }
+      } else {
+        // 従来の放射系
+        for (let i = 0; i < n; i++) {
+          const v = randomVelocity(shape, i, n, spd);
+          arr.push({
+            x,
+            y,
+            vx: v.vx,
+            vy: v.vy,
+            life: 1,
+            size: 1.1 + Math.random() * 0.5,
+            color: explosionCssColor,
+            history: [],
+          });
+        }
       }
+
       particlesRef.current = arr;
       onExplodeRef.current?.();
     };
@@ -265,21 +379,29 @@ export default function Firework({
           }
         } else {
           const pArr = particlesRef.current;
-          // duration が短いほど早く消える（平均負荷減）← 調整ポイント
-          const decay = stepMs / (duration * 1000);
-          let alive = 0;
+          // 寿命は「w」をほんの少しだけ速く減衰させ、同時多発時の平均負荷を微減
+          const decayBase = stepMs / (duration * 1000);
+          const decay = shapeRef.current === "w" ? decayBase * 1.06 : decayBase;
 
+          // 「w」は形保持のため、重力弱め・減衰やや強め（既存値を維持）
+          const gravity = shapeRef.current === "w" ? 0.006 : UNIFORM_GRAVITY;
+          const friction = shapeRef.current === "w" ? 0.94 : FRICTION;
+
+          // 履歴ノード数も「w」だけ1つ減らす（3 → 2）
+          const maxHist = shapeRef.current === "w" ? 2 : HISTORY_LEN;
+
+          let alive = 0;
           for (let p of pArr) {
             if (p.life <= 0) continue;
 
-            // 履歴は短縮（box-shadow 多重で1ノード描画）
+            // 履歴（尾）は多重 box-shadow で1ノード描画
             p.history.push({ x: p.x, y: p.y, opacity: p.life });
-            if (p.history.length > HISTORY_LEN) p.history.shift();
+            if (p.history.length > maxHist) p.history.shift();
 
             p.x += p.vx;
             p.y += p.vy;
-            p.vx *= FRICTION;
-            p.vy = p.vy * FRICTION + UNIFORM_GRAVITY;
+            p.vx *= friction;
+            p.vy = p.vy * friction + gravity;
 
             p.life = Math.max(0, p.life - decay);
             if (p.life > 0) alive++;
@@ -294,7 +416,7 @@ export default function Firework({
         }
       }
 
-      // 描画間引き（DRAW_FPS）← 調整ポイント
+      // 描画間引き
       if (now - lastDrawRef.current >= DRAW_INTERVAL) {
         lastDrawRef.current = now;
         if (phaseRef.current === "launch") {
@@ -344,14 +466,16 @@ export default function Firework({
     );
   }
 
-  // トレイルを複数の box-shadow にまとめて1ノード描画にする
-  // ぼかし量・スプレッドを下げると軽い（ふわっと感は少し減る）← 調整ポイント
+  const isW = shape === "w";
+
+  // トレイル（履歴）を複数の box-shadow にまとめて1ノード描画
   const makeTrailShadow = (p: Particle) => {
     if (!p.history.length) return "";
     const parts: string[] = [];
-    const blurBase = 4;   // 6 → 4
-    const blurStep = 2;   // 3 → 2
-    const spread = 1;     // 2 → 1
+    // 「w」はぼかし量を少し下げて軽量化（見た目差は最小）
+    const blurBase = isW ? 3 : 4;
+    const blurStep = isW ? 1 : 2;
+    const spread = 1;
     for (let j = 0; j < p.history.length; j++) {
       const h = p.history[j];
       const dx = h.x - p.x;
@@ -376,13 +500,12 @@ export default function Firework({
                     position: "absolute",
                     left: `${p.x}px`,
                     top: `${p.y}px`,
-                    // 要素自体は極小。シャドウで尾を描く
                     width: `2px`,
                     height: `2px`,
                     borderRadius: "50%",
                     background: "transparent",
                     color: p.color, // currentColor に反映
-                    opacity: 0.24,  // 全体の薄さ（HISTORY_LEN 減の分を少し補正）
+                    opacity: isW ? 0.20 : 0.24, // w はわずかに薄め（負荷軽減の副次効果）
                     boxShadow: trailShadow,
                     transform: "translate(-50%, -50%) translateZ(0)",
                     pointerEvents: "none",
@@ -393,18 +516,17 @@ export default function Firework({
                 />
               )}
 
-              {/* コア粒子（サイズを少し下げて描画負荷を低減）← 調整ポイント: *10 → *9 */}
+              {/* コア粒子（「w」はほんの少しだけ小さく） */}
               <div
                 style={{
                   position: "absolute",
                   left: `${p.x}px`,
                   top: `${p.y}px`,
-                  width: `${p.size * 9}px`,
-                  height: `${p.size * 9}px`,
+                  width: `${p.size * (isW ? 8.5 : 9)}px`,
+                  height: `${p.size * (isW ? 8.5 : 9)}px`,
                   borderRadius: "50%",
                   background: p.color,
-                  // 発光のぼかしもやや軽めに（8px/4px → 7px/3px）← 調整ポイント
-                  boxShadow: `0 0 7px 3px ${p.color}`,
+                  boxShadow: isW ? `0 0 6px 3px ${p.color}` : `0 0 7px 3px ${p.color}`,
                   opacity: p.life * 0.85 + 0.15,
                   filter: "blur(0.2px)",
                   transform: "translate(-50%, -50%) translateZ(0)",

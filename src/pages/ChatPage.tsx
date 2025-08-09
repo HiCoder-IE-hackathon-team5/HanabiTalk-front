@@ -22,45 +22,37 @@ type FireworkItem = {
   shape: FireworkShape;
 };
 
-// 左右の出現範囲を「少し」狭める（安全マージン 3vw → 8vw）
 function getLaunchX() {
-  const edge = Math.max(24, window.innerWidth * 0.08); // 最小24px or 8vw
+  // 左右の出現範囲をやや狭め（安全マージン ~8vw）
+  const edge = Math.max(24, window.innerWidth * 0.08);
   const min = edge;
   const max = window.innerWidth - edge;
   return Math.random() * (max - min) + min;
 }
-
-// 上にも下にもバランス良く出るよう、上下のレンジを広げつつ一様分布に
 function getCentralY() {
-  const min = window.innerHeight * 0.18; // 画面上部すぎを避ける
-  const max = window.innerHeight * 0.78; // 画面下部のUIとかぶりにくい範囲
-  return Math.random() * (max - min) + min; // 偏りなし（バランス良く）
+  const min = window.innerHeight * 0.18;
+  const max = window.innerHeight * 0.78;
+  return Math.random() * (max - min) + min;
 }
-
-// 段階（ステップ）数を増やしてサイズを量子化（例: 10段階）
 function quantize(value: number, min: number, max: number, steps: number) {
   const clamped = Math.max(min, Math.min(max, value));
   const t = (clamped - min) / (max - min);
   const idx = Math.round(t * (steps - 1));
   return min + (idx / (steps - 1)) * (max - min);
 }
-
-// 文字量が増えるほど「大きく」なるが、段階的に増えるように
 function getFireworkSize(message: string) {
-  const len = [...message].length; // 絵文字なども1文字としてカウント
-  const raw = Math.min(3.0, 1.0 + len / 30); // 1.0〜3.0に連続スケール
-  return quantize(raw, 1.0, 3.0, 10);        // ← 10段階に量子化
+  const len = [...message].length;
+  const raw = Math.min(3.0, 1.0 + len / 30);
+  return quantize(raw, 1.0, 3.0, 10);
 }
 function getFireworkDuration(message: string) {
   const len = [...message].length;
-  // 消える速度（寿命）は連続スケール
   return Math.max(3, Math.min(12, 3 + len * 0.08));
 }
 function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
-// 形の候補（classic 以外）
 const NON_CLASSIC_SHAPES: FireworkShape[] = [
   "circle",
   "kamuro",
@@ -70,14 +62,12 @@ const NON_CLASSIC_SHAPES: FireworkShape[] = [
   "diamond",
   "hexagon",
 ];
-// 出現形の比率
 function getRandomShape(): FireworkShape {
   if (Math.random() < 0.6) return "classic";
   return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
 }
 
 export default function ChatPage() {
-  // ログイン時にcookieへ保存されている値を取得
   const userName = getCookie("user_name") || "you";
   const roomName = getCookie("room_name") || "General";
 
@@ -97,19 +87,22 @@ export default function ChatPage() {
     if (lastMessageRef.current && lastMessageRef.current === latest) return;
     lastMessageRef.current = latest;
 
-    setFireworkItems(items => [
+    const norm = latest.message.trim().normalize("NFKC").toLowerCase();
+    const isW = norm === "w";
+
+    setFireworkItems((items) => [
       ...items,
       {
         id: `${latest.room_name}-${latest.user_name}-${latest.message}-${Date.now()}`,
         message: latest.message,
         color: latest.color,
-        x: getLaunchX(),           // ← 左右の出現範囲を少し狭めたX
+        x: getLaunchX(),
         y: getCentralY(),
         size: getFireworkSize(latest.message),
         duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
-        shape: getRandomShape(),
-      }
+        shape: isW ? "w" : getRandomShape(),
+      },
     ]);
   }, [messages]);
 
@@ -126,38 +119,40 @@ export default function ChatPage() {
   };
 
   const handleFireworkEnd = (id: string) => {
-    setFireworkItems(items => items.filter(item => item.id !== id));
+    setFireworkItems((items) => items.filter((item) => item.id !== id));
   };
 
   return (
     <div style={{ minHeight: "100vh", background: "transparent", position: "relative" }}>
       <StarryBackground />
-      {/* ログパネル */}
+
       <SidePanel isOpen={logOpen}>
         <ChatLog messages={messages} userName={userName} />
       </SidePanel>
-      {/* サイドパネルのトグルボタン */}
-      <PanelToggleButton
-        onClick={() => setLogOpen((open) => !open)}
-        isOpen={logOpen}
-      />
-      {/* 花火エフェクト */}
-      {fireworkItems.map(item => (
-        <FireworkWithMessage
-          key={item.id}
-          id={item.id}
-          x={item.x}
-          y={item.y}
-          color={item.color}
-          message={item.message}
-          size={item.size}
-          duration={item.duration}
-          launchSpeed={item.launchSpeed}
-          shape={item.shape}
-          onEnd={handleFireworkEnd}
-        />
-      ))}
-      {/* 右下のヘッダー・ユーザ情報 */}
+
+      <PanelToggleButton onClick={() => setLogOpen((open) => !open)} isOpen={logOpen} />
+
+      {/* 花火（非wのときはメッセージオーバーレイを表示） */}
+      {fireworkItems.map((item) => {
+        const asTextW = item.shape === "w";
+        return (
+          <FireworkWithMessage
+            key={item.id}
+            id={item.id}
+            x={item.x}
+            y={item.y}
+            color={item.color}
+            message={item.message}
+            size={item.size}
+            duration={item.duration}
+            launchSpeed={item.launchSpeed}
+            shape={item.shape}
+            onEnd={handleFireworkEnd}
+            asTextW={asTextW}
+          />
+        );
+      })}
+
       <div
         style={{
           position: "fixed",
@@ -170,7 +165,7 @@ export default function ChatPage() {
           alignItems: "center",
           background: "transparent",
           gap: "1.3em",
-          pointerEvents: "none"
+          pointerEvents: "none",
         }}
       >
         <div
@@ -186,19 +181,21 @@ export default function ChatPage() {
             borderRadius: "8px",
             padding: "0.6em 1.4em 0.6em 1.4em",
             pointerEvents: "auto",
-            boxShadow: "0 2px 12px #0003"
+            boxShadow: "0 2px 12px #0003",
           }}
         >
-          <span style={{
-            fontSize: "1.1em",
-            color: "#b5badc",
-            opacity: 0.7,
-            fontWeight: 500,
-            letterSpacing: "0.04em",
-            textShadow: "0 0 2px #121222",
-            userSelect: "none",
-            marginRight: "1.2em"
-          }}>
+          <span
+            style={{
+              fontSize: "1.1em",
+              color: "#b5badc",
+              opacity: 0.7,
+              fontWeight: 500,
+              letterSpacing: "0.04em",
+              textShadow: "0 0 2px #121222",
+              userSelect: "none",
+              marginRight: "1.2em",
+            }}
+          >
             チャットページ
           </span>
           <span>ユーザー: <b>{userName}</b></span>
@@ -220,13 +217,14 @@ export default function ChatPage() {
                 outline: "none",
                 pointerEvents: "auto",
               }}
-              onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
-              onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
-              onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
             />
           </span>
         </div>
       </div>
+
       {/* 入力欄 */}
       <div
         style={{
@@ -243,7 +241,7 @@ export default function ChatPage() {
   );
 }
 
-// 花火とメッセージ表示（爆発中の寿命と同じ長さでフェード＋落下）
+// 花火＋メッセージ（非wのみメッセージオーバーレイを表示）
 function FireworkWithMessage({
   id,
   x,
@@ -255,6 +253,7 @@ function FireworkWithMessage({
   launchSpeed,
   shape,
   onEnd,
+  asTextW = false,
 }: {
   id: string;
   x: number;
@@ -266,6 +265,7 @@ function FireworkWithMessage({
   launchSpeed: number;
   shape: FireworkShape;
   onEnd: (id: string) => void;
+  asTextW?: boolean;
 }) {
   const [showMsg, setShowMsg] = useState(false);
   const [msgOpacity, setMsgOpacity] = useState(0);
@@ -339,11 +339,13 @@ function FireworkWithMessage({
         shape={shape}
         onEnd={handleFireworkEnd}
         onExplode={() => {
-          setShowMsg(true);
-          startFadeAndFall();
+          if (!asTextW) {
+            setShowMsg(true);   // ← 非wのときはメッセージを表示
+            startFadeAndFall();
+          }
         }}
       />
-      {showMsg && (
+      {!asTextW && showMsg && (
         <div
           style={{
             position: "fixed",
