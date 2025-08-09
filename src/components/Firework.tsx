@@ -20,6 +20,8 @@ type Particle = {
   size: number;
   color: string;
   history: { x: number; y: number; opacity: number }[];
+  // w の形を「少しだけ」崩すための決定的シード（他形状では未使用）
+  seed?: number;
 };
 
 export type FireworkProps = {
@@ -50,8 +52,7 @@ const BASE_SPEED = 6.5;
 // 上昇の減速（「ゆっくり上がる」を維持）
 const ROCKET_DECEL = 0.18;
 
-// 粒子数（減らすと軽いが密度低下）
-// 「w」はほんの少しだけ軽量化（72 → 64）
+// 粒子数
 const PARTICLE_COUNTS: Record<FireworkShape, number> = {
   classic: 56, // 64 → 56
   circle: 32,  // 36 → 32
@@ -61,7 +62,7 @@ const PARTICLE_COUNTS: Record<FireworkShape, number> = {
   clover: 36,  // 44 → 36
   diamond: 36, // 42 → 36
   hexagon: 40, // 48 → 40
-  w: 48,       // 72 → 48
+  w: 46,
 };
 
 // 形ごとの平均半径の差を吸収
@@ -74,7 +75,7 @@ const SHAPE_RADIUS_NORMALIZER: Record<FireworkShape, number> = {
   clover: 1.18,
   diamond: 0.90,
   hexagon: 1.00,
-  w: 1.10, // 「w」はやや大きめに広げて視認性を上げる
+  w: 1.10,
 };
 
 // 文字量に応じた爆発半径（初速）スケール
@@ -151,6 +152,8 @@ function wEvenPoints(n: number, rows = 3, thickness = 0.16) {
   }
 
   const out: Array<{ ox: number; oy: number }> = [];
+  // くっきり表示のための微少ジッタ（控えめ）
+  const jitter = 0.004;
   for (let r = 0; r < rows; r++) {
     const kMax = counts[r];
     if (kMax <= 0) continue;
@@ -161,11 +164,8 @@ function wEvenPoints(n: number, rows = 3, thickness = 0.16) {
       // 骨格上の等間隔（中心寄せ）
       const t = (k + 0.5) / kMax;
       const { px, py, nx, ny } = pointAndNormalAt(t);
-      // わずかな秩序付きジッタ（行と列で位相を変える）
-      const jitter = 0.008;
-      const jx = Math.sin((k + 1) * 2.399) * jitter * 0.5; // 擬似乱数（決定的）
+      const jx = Math.sin((k + 1) * 2.399) * jitter * 0.5;
       const jy = Math.cos((r + 1) * 1.731) * jitter * 0.5;
-
       const ox = px + nx * offset + jx;
       const oy = py + ny * offset + jy;
       out.push({ ox, oy });
@@ -231,6 +231,12 @@ function randomVelocity(shape: FireworkShape, i: number, n: number, speed: numbe
   }
 }
 
+// w の「形崩し」用パラメータ（ごく弱く、時間とともに微妙に流す）
+const TAU = Math.PI * 2;
+const W_DRIFT_ACCEL = 0.0035;  // 1ステップあたりのごく小さな擬似加速度
+const W_DRIFT_FREQ_X = 0.60;   // Hz 相当（60fps 基準の目安）
+const W_DRIFT_FREQ_Y = 0.83;   // Hz 相当（X と微妙にずらす）
+
 export default function Firework({
   x,
   y,
@@ -254,6 +260,9 @@ export default function Firework({
   const explodedRef = useRef(false);
   const lastDrawRef = useRef<number>(performance.now());
   const shapeRef = useRef<FireworkShape>(shape); // 物理ループから参照
+
+  // w のドリフト時間管理（60fps換算でステップ加算）
+  const wTickRef = useRef<number>(0);
 
   const onEndRef = useRef(onEnd);
   const onExplodeRef = useRef(onExplode);
@@ -284,6 +293,7 @@ export default function Firework({
     particlesRef.current = [];
     setTail([]);
     setRenderParticles([]);
+    wTickRef.current = 0;
 
     let rafId = 0;
     let prev = performance.now();
@@ -305,18 +315,25 @@ export default function Firework({
         const R = spd * 7.0; // 正規化座標 → ピクセル半径
         for (let i = 0; i < n; i++) {
           const o = offsets[i];
-          // 軽いきらめきのみ（形を崩さない微小速度）
-          const jx = (Math.sin(i * 1.7) * 0.5 + 0.5) * 0.2 - 0.1;
-          const jy = (Math.cos(i * 1.3) * 0.5 + 0.5) * 0.2 - 0.1;
+          // きらめきは控えめ（形を壊さない）＋ 初速で下向きバイアス
+          const jx = (Math.sin(i * 1.7) * 0.5 + 0.5) * 0.1 - 0.05;
+          const jy = (Math.cos(i * 1.3) * 0.5 + 0.5) * 0.1 - 0.05;
+          const vyBias = 0.28; // 落下開始を早めるための微小な下向きバイアス
+
+          // 決定的シード（形崩しの位相用）
+          const sRaw = Math.sin((i + 1) * 12.9898) * 43758.5453;
+          const seed = sRaw - Math.floor(sRaw); // 0..1
+
           arr.push({
             x: x + o.ox * R,
             y: y + o.oy * R,
             vx: jx,
-            vy: jy,
+            vy: jy + vyBias,
             life: 1,
             size: 1.1 + Math.random() * 0.5,
             color: explosionCssColor,
             history: [],
+            seed,
           });
         }
       } else {
@@ -378,21 +395,34 @@ export default function Firework({
             }
           }
         } else {
+          // explode フェーズの経過ステップ（w のドリフト用）
+          wTickRef.current += 1;
+
           const pArr = particlesRef.current;
-          // 寿命は「w」をほんの少しだけ速く減衰させ、同時多発時の平均負荷を微減
-          const decayBase = stepMs / (duration * 1000);
-          const decay = shapeRef.current === "w" ? decayBase * 1.06 : decayBase;
-
-          // 「w」は形保持のため、重力弱め・減衰やや強め（既存値を維持）
-          const gravity = shapeRef.current === "w" ? 0.006 : UNIFORM_GRAVITY;
-          const friction = shapeRef.current === "w" ? 0.94 : FRICTION;
-
-          // 履歴ノード数も「w」だけ1つ減らす（3 → 2）
-          const maxHist = shapeRef.current === "w" ? 2 : HISTORY_LEN;
-
+          const decay = stepMs / (duration * 1000);
           let alive = 0;
+
+          // 「文字（w）」の落下強化（前仕様を維持）
+          const isW = shapeRef.current === "w";
+          const gravity = isW ? 0.06 : UNIFORM_GRAVITY;
+          const friction = isW ? 0.965 : FRICTION;
+          const maxVel = isW ? 1.2 : 999;
+
+          const maxHist = isW ? 2 : HISTORY_LEN; // w は尾を短く（くっきり優先）
+
+          // w の形を少しずつ崩すための擬似ドリフト（ごく微小）
+          const tSec = wTickRef.current / 60;
           for (let p of pArr) {
             if (p.life <= 0) continue;
+
+            // 形崩し（w限定）：位相ごとに微小な正弦ゆらぎを加える
+            if (isW) {
+              const phase = (p.seed ?? 0) * TAU;
+              // 寿命が減るほど僅かに振幅を増やす（最大でも小さい）
+              const amp = W_DRIFT_ACCEL * (0.6 + (1 - p.life) * 0.7);
+              p.vx += Math.sin(tSec * TAU * W_DRIFT_FREQ_X + phase) * amp;
+              p.vy += Math.cos(tSec * TAU * W_DRIFT_FREQ_Y + phase * 1.3) * (amp * 0.9);
+            }
 
             // 履歴（尾）は多重 box-shadow で1ノード描画
             p.history.push({ x: p.x, y: p.y, opacity: p.life });
@@ -400,8 +430,17 @@ export default function Firework({
 
             p.x += p.vx;
             p.y += p.vy;
+
             p.vx *= friction;
             p.vy = p.vy * friction + gravity;
+
+            if (isW) {
+              // 速度クランプ（にじみ/流れ防止）
+              if (p.vx > maxVel) p.vx = maxVel;
+              if (p.vx < -maxVel) p.vx = -maxVel;
+              if (p.vy > maxVel) p.vy = maxVel;
+              if (p.vy < -maxVel) p.vy = -maxVel;
+            }
 
             p.life = Math.max(0, p.life - decay);
             if (p.life > 0) alive++;
@@ -472,10 +511,10 @@ export default function Firework({
   const makeTrailShadow = (p: Particle) => {
     if (!p.history.length) return "";
     const parts: string[] = [];
-    // 「w」はぼかし量を少し下げて軽量化（見た目差は最小）
-    const blurBase = isW ? 3 : 4;
+    // w はさらにシャープに（blur/step を下げる）
+    const blurBase = isW ? 2 : 4;
     const blurStep = isW ? 1 : 2;
-    const spread = 1;
+    const spread = isW ? 0.8 : 1;
     for (let j = 0; j < p.history.length; j++) {
       const h = p.history[j];
       const dx = h.x - p.x;
@@ -505,7 +544,7 @@ export default function Firework({
                     borderRadius: "50%",
                     background: "transparent",
                     color: p.color, // currentColor に反映
-                    opacity: isW ? 0.20 : 0.24, // w はわずかに薄め（負荷軽減の副次効果）
+                    opacity: isW ? 0.18 : 0.24, // w は尾を控えめにしてくっきり
                     boxShadow: trailShadow,
                     transform: "translate(-50%, -50%) translateZ(0)",
                     pointerEvents: "none",
@@ -516,19 +555,19 @@ export default function Firework({
                 />
               )}
 
-              {/* コア粒子（「w」はほんの少しだけ小さく） */}
+              {/* コア粒子（w はさらにシャープに） */}
               <div
                 style={{
                   position: "absolute",
                   left: `${p.x}px`,
                   top: `${p.y}px`,
-                  width: `${p.size * (isW ? 8.5 : 9)}px`,
-                  height: `${p.size * (isW ? 8.5 : 9)}px`,
+                  width: `${p.size * (isW ? 8.3 : 9)}px`,
+                  height: `${p.size * (isW ? 8.3 : 9)}px`,
                   borderRadius: "50%",
                   background: p.color,
-                  boxShadow: isW ? `0 0 6px 3px ${p.color}` : `0 0 7px 3px ${p.color}`,
-                  opacity: p.life * 0.85 + 0.15,
-                  filter: "blur(0.2px)",
+                  boxShadow: isW ? `0 0 4px 2px ${p.color}` : `0 0 7px 3px ${p.color}`,
+                  opacity: p.life * 0.9 + 0.1, // w は少しだけ明るめ
+                  filter: isW ? "none" : "blur(0.2px)",
                   transform: "translate(-50%, -50%) translateZ(0)",
                   pointerEvents: "none",
                   zIndex: 52,

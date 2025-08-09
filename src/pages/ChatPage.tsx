@@ -67,6 +67,29 @@ function getRandomShape(): FireworkShape {
   return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
 }
 
+/**
+ * テキスト落下と花火物理を合わせるための共有パラメータ
+ * Firework 側の非w重力/摩擦と同じ数値を使う（同期）
+ */
+const STEP_MS = 1000 / 60;           // Firework の物理ステップと同じ
+const FRICTION_NON_W = 0.92;         // Firework の FRICTION
+const GRAVITY_BASE = 0.045;          // Firework の UNIFORM_GRAVITY
+
+// ここを調整して「テキストだけ」落下を弱める
+const TEXT_FALL_SCALE_FIREWORK = 1.6; // 粒子（非w）に渡す重力倍率（据え置き）
+const TEXT_FALL_SCALE_TEXT = 1.2;    // テキストの重力倍率（以前 1.6 → 少し弱め）
+
+// n ステップ後の離散系落下距離（初速 0、v_{k+1} = F*v_k + g）
+// 累積位置 Y(n) = g * [ n/(1-F) - (1 - F^n)/(1-F)^2 ]
+function dropPixelsFromSteps(nSteps: number, g: number, F: number) {
+  const oneMinusF = 1 - F;
+  if (oneMinusF <= 0) return 0;
+  const Fn = Math.pow(F, nSteps);
+  const term1 = nSteps / oneMinusF;
+  const term2 = (1 - Fn) / (oneMinusF * oneMinusF);
+  return g * (term1 - term2);
+}
+
 export default function ChatPage() {
   const userName = getCookie("user_name") || "you";
   const roomName = getCookie("room_name") || "General";
@@ -282,31 +305,36 @@ function FireworkWithMessage({
     fadeStartRef.current = null;
   };
 
-  function getMaxDropPx(size: number, duration: number) {
-    const base = 60;
-    const bySize = (size - 1) * 45;
-    const byDur = (duration - 3) * 8;
-    return Math.min(200, base + bySize + byDur);
-  }
+  // Firework の非w物理と合わせつつ「テキストだけ」弱める
+  const gravityForText = GRAVITY_BASE * TEXT_FALL_SCALE_TEXT;
+  const frictionForText = FRICTION_NON_W;
 
+  // 離散物理に合わせた落下（花火の粒子と同じ 60fps/重力/摩擦）
   const startFadeAndFall = () => {
     stopFade();
     setMsgOpacity(1);
     setMsgYOffset(0);
     fadeStartRef.current = performance.now();
 
-    const maxDrop = getMaxDropPx(size, duration);
+    const totalMs = duration * 1000;
 
     const tick = (now: number) => {
       if (fadeStartRef.current == null) return;
-      const elapsed = now - fadeStartRef.current;
-      const total = duration * 1000;
-      const t = Math.min(1, elapsed / total);
+      const elapsedMs = now - fadeStartRef.current;
+      const clampedMs = Math.min(elapsedMs, totalMs);
 
-      setMsgOpacity(1 - t);          // フェード
-      setMsgYOffset(maxDrop * t * t); // 落下（加速）
+      // 経過ステップ数（整数ステップで Firework と完全一致）
+      const steps = Math.floor(clampedMs / STEP_MS);
 
-      if (t < 1) {
+      // 初速 0 とみなしたときの理論落下距離
+      const drop = dropPixelsFromSteps(steps, gravityForText, frictionForText);
+
+      // フェードは従来どおり線形
+      const t = Math.min(1, clampedMs / totalMs);
+      setMsgOpacity(1 - t);
+      setMsgYOffset(drop);
+
+      if (clampedMs < totalMs) {
         fadeRafRef.current = requestAnimationFrame(tick);
       } else {
         fadeRafRef.current = null;
@@ -344,6 +372,10 @@ function FireworkWithMessage({
             startFadeAndFall();
           }
         }}
+        // 非wの粒子重力は従来どおり（やや強め）にしておき、テキストだけ弱める
+        {...(!asTextW
+          ? { textMode: true, textFallScale: TEXT_FALL_SCALE_FIREWORK }
+          : {})}
       />
       {!asTextW && showMsg && (
         <div
