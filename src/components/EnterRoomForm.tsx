@@ -51,7 +51,7 @@ const buttonStyle: React.CSSProperties = {
   transition: "background 0.14s, box-shadow 0.12s, transform 0.07s",
 };
 
-const errorStyle: React.CSSProperties = {
+const errorStyleBase: React.CSSProperties = {
   color: "#ff6377",
   background: "#fff1",
   borderRadius: "5px",
@@ -61,6 +61,16 @@ const errorStyle: React.CSSProperties = {
   fontSize: "0.97em",
   textAlign: "center",
 };
+
+// エラーメッセージの出し入れで高さが変わらないように常に確保する領域
+const reservedErrorStyle = (visible: boolean): React.CSSProperties => ({
+  ...errorStyleBase,
+  minHeight: "2.2em",         // 1行分程度の高さを常時確保
+  opacity: visible ? 1 : 0,   // 非表示時は透明にするだけ
+  transition: "opacity 120ms ease",
+  pointerEvents: "none",
+  whiteSpace: "pre-wrap",
+});
 
 const sectionHeaderStyle: React.CSSProperties = {
   color: "#eaf6ff",
@@ -116,7 +126,9 @@ const EnterRoomForm = () => {
   return (
     <form style={sectionStyle} onSubmit={handleEnter} autoComplete="off">
       <div style={sectionHeaderStyle}>部屋に入る</div>
-      {error && <div style={errorStyle}>{error}</div>}
+
+      {/* 上部のレイアウトは動かしたくないので、ここにはエラーを置かない */}
+
       <label htmlFor="userName" style={labelStyle}>ユーザー名</label>
       <input
         id="userName"
@@ -129,6 +141,7 @@ const EnterRoomForm = () => {
         spellCheck={false}
         autoComplete="username"
       />
+
       <label htmlFor="roomName" style={labelStyle}>ルーム名</label>
       <input
         id="roomName"
@@ -141,9 +154,16 @@ const EnterRoomForm = () => {
         spellCheck={false}
         autoComplete="off"
       />
+
+      {/* 要望どおり「ルーム名」と「入室」の間にエラー表示（高さは常時確保） */}
+      <div style={reservedErrorStyle(Boolean(error))} aria-live="polite" role="status">
+        {error || "　"}
+      </div>
+
       <button type="submit" style={buttonStyle}>
         入室
       </button>
+
       {/* 公開ルーム一覧 */}
       <div style={{
         marginTop: "1em",
