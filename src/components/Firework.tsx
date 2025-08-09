@@ -33,9 +33,12 @@ export type FireworkProps = {
   onExplode: () => void;
 };
 
-const DRAW_FPS = 30;
+// レンダ頻度を下げて描画コストを削減（30fps -> 24fps）
+const DRAW_FPS = 24;
 const DRAW_INTERVAL = 1000 / DRAW_FPS;
-const HISTORY_LEN = 6;
+
+// トレイル履歴を短縮（ノード数削減）
+const HISTORY_LEN = 4;
 
 const UNIFORM_GRAVITY = 0.045;
 const FRICTION = 0.92;
@@ -264,6 +267,7 @@ export default function Firework({
           for (let p of pArr) {
             if (p.life <= 0) continue;
 
+            // 履歴は短縮（描画はCSSの多重 box-shadow で1ノード化）
             p.history.push({ x: p.x, y: p.y, opacity: p.life });
             if (p.history.length > HISTORY_LEN) p.history.shift();
 
@@ -285,6 +289,7 @@ export default function Firework({
         }
       }
 
+      // 描画間引き（24fps）
       if (now - lastDrawRef.current >= DRAW_INTERVAL) {
         lastDrawRef.current = now;
         if (phaseRef.current === "launch") {
@@ -324,6 +329,8 @@ export default function Firework({
                 filter: "blur(0.7px)",
                 pointerEvents: "none",
                 zIndex: 51,
+                willChange: "transform, opacity",
+                contain: "layout paint style",
               }}
             />
           ))}
@@ -332,50 +339,78 @@ export default function Firework({
     );
   }
 
+  // 履歴を複数の box-shadow にまとめて1ノード描画にする
+  const makeTrailShadow = (p: Particle) => {
+    if (!p.history.length) return "";
+    // 古い履歴ほど広く・弱く見えるようにぼかし量を増やす
+    const parts: string[] = [];
+    for (let j = 0; j < p.history.length; j++) {
+      const h = p.history[j];
+      const dx = h.x - p.x;
+      const dy = h.y - p.y;
+      const blur = 6 + j * 3;
+      const spread = 2; // ちょい厚み
+      // 色は currentColor を使用し、要素側で color = p.color にする
+      parts.push(`${dx}px ${dy}px ${blur}px ${spread}px currentColor`);
+    }
+    return parts.join(", ");
+  };
+
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
       <div className="absolute w-full h-full left-0 top-0">
-        {renderParticles.map((p, i) => (
-          <div key={i}>
-            {p.history.map((h, j) => (
+        {renderParticles.map((p, i) => {
+          const trailShadow = makeTrailShadow(p);
+          return (
+            <div key={i}>
+              {/* 履歴トレイル（1ノードで多重シャドウ） */}
+              {trailShadow && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${p.x}px`,
+                    top: `${p.y}px`,
+                    // 要素自体は極小。シャドウで尾を描く
+                    width: `2px`,
+                    height: `2px`,
+                    borderRadius: "50%",
+                    background: "transparent",
+                    color: p.color, // currentColor に反映
+                    opacity: 0.22, // 全体の薄さ（以前の h.opacity * 0.18 のイメージ）
+                    boxShadow: trailShadow,
+                    transform: "translate(-50%, -50%) translateZ(0)",
+                    pointerEvents: "none",
+                    zIndex: 51,
+                    willChange: "transform, box-shadow, opacity",
+                    contain: "layout paint style",
+                  }}
+                />
+              )}
+
+              {/* コア粒子 */}
               <div
-                key={j}
                 style={{
                   position: "absolute",
-                  left: `${h.x}px`,
-                  top: `${h.y}px`,
-                  width: `${p.size * 7}px`,
-                  height: `${p.size * 7}px`,
+                  left: `${p.x}px`,
+                  top: `${p.y}px`,
+                  width: `${p.size * 10}px`,
+                  height: `${p.size * 10}px`,
                   borderRadius: "50%",
                   background: p.color,
-                  opacity: h.opacity * 0.18,
-                  filter: "blur(2px)",
+                  boxShadow: `0 0 8px 4px ${p.color}`,
+                  opacity: p.life * 0.85 + 0.15,
+                  filter: "blur(0.2px)",
                   transform: "translate(-50%, -50%) translateZ(0)",
                   pointerEvents: "none",
-                  zIndex: 51,
+                  zIndex: 52,
+                  border: "none",
+                  willChange: "transform, opacity",
+                  contain: "layout paint style",
                 }}
               />
-            ))}
-            <div
-              style={{
-                position: "absolute",
-                left: `${p.x}px`,
-                top: `${p.y}px`,
-                width: `${p.size * 10}px`,
-                height: `${p.size * 10}px`,
-                borderRadius: "50%",
-                background: p.color,
-                boxShadow: `0 0 8px 4px ${p.color}`,
-                opacity: p.life * 0.85 + 0.15,
-                filter: "blur(0.2px)",
-                transform: "translate(-50%, -50%) translateZ(0)",
-                pointerEvents: "none",
-                zIndex: 52,
-                border: "none",
-              }}
-            />
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
