@@ -27,10 +27,12 @@ function getCentralX() {
   const max = window.innerWidth * 0.75;
   return Math.random() * (max - min) + min;
 }
+
+// 上にも下にもバランス良く出るよう、上下のレンジを広げつつ一様分布に
 function getCentralY() {
-  const min = window.innerHeight * 0.32;
-  const max = window.innerHeight * 0.60;
-  return Math.random() * (max - min) + min;
+  const min = window.innerHeight * 0.18; // 画面上部すぎを避ける
+  const max = window.innerHeight * 0.78; // 画面下部のUIとかぶりにくい範囲
+  return Math.random() * (max - min) + min; // 偏りなし（バランス良く）
 }
 
 // 段階（ステップ）数を増やしてサイズを量子化（例: 10段階）
@@ -68,7 +70,7 @@ const NON_CLASSIC_SHAPES: FireworkShape[] = [
 ];
 // 約8割で classic（必要なら 0.5 で5割に）
 function getRandomShape(): FireworkShape {
-  if (Math.random() < 0.8) return "classic";
+  if (Math.random() < 0.6) return "classic";
   return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
 }
 
@@ -153,7 +155,7 @@ export default function ChatPage() {
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* 右下のヘッダー・ユーザ情報＋「チャットページ」文言もこの中へ */}
+      {/* 右下のヘッダー・ユーザ情報 */}
       <div
         style={{
           position: "fixed",
@@ -223,7 +225,7 @@ export default function ChatPage() {
           </span>
         </div>
       </div>
-      {/* 入力欄を左下に絶対位置配置 */}
+      {/* 入力欄 */}
       <div
         style={{
           position: "fixed",
@@ -265,7 +267,7 @@ function FireworkWithMessage({
 }) {
   const [showMsg, setShowMsg] = useState(false);
   const [msgOpacity, setMsgOpacity] = useState(0);
-  const [msgYOffset, setMsgYOffset] = useState(0); // 追加: 下方向オフセット(px)
+  const [msgYOffset, setMsgYOffset] = useState(0); // 下方向オフセット(px)
 
   const fadeRafRef = useRef<number | null>(null);
   const fadeStartRef = useRef<number | null>(null);
@@ -278,12 +280,11 @@ function FireworkWithMessage({
     fadeStartRef.current = null;
   };
 
-  // メッセージの落下距離を算出（花火の大きさと寿命に応じて増やす）
   function getMaxDropPx(size: number, duration: number) {
-    const base = 60;                    // 基本の落下量
-    const bySize = (size - 1) * 45;     // 大きい花火ほどよく落ちる
-    const byDur = (duration - 3) * 8;   // 長寿命ほどよく落ちる
-    return Math.min(200, base + bySize + byDur); // 上限200px
+    const base = 60;
+    const bySize = (size - 1) * 45;
+    const byDur = (duration - 3) * 8;
+    return Math.min(200, base + bySize + byDur);
   }
 
   const startFadeAndFall = () => {
@@ -297,15 +298,11 @@ function FireworkWithMessage({
     const tick = (now: number) => {
       if (fadeStartRef.current == null) return;
       const elapsed = now - fadeStartRef.current;
-      const total = duration * 1000; // Firework の寿命と同じ
+      const total = duration * 1000;
       const t = Math.min(1, elapsed / total);
 
-      // フェード（線形）
-      setMsgOpacity(1 - t);
-
-      // 落下（重力っぽく加速: t^2）
-      const yOff = maxDrop * (t * t);
-      setMsgYOffset(yOff);
+      setMsgOpacity(1 - t);          // フェード
+      setMsgYOffset(maxDrop * t * t); // 落下（加速）
 
       if (t < 1) {
         fadeRafRef.current = requestAnimationFrame(tick);
@@ -341,7 +338,7 @@ function FireworkWithMessage({
         onEnd={handleFireworkEnd}
         onExplode={() => {
           setShowMsg(true);
-          startFadeAndFall(); // 爆発開始と同時にフェード＆落下開始
+          startFadeAndFall();
         }}
       />
       {showMsg && (
@@ -349,7 +346,7 @@ function FireworkWithMessage({
           style={{
             position: "fixed",
             left: `${x}px`,
-            top: `${y + msgYOffset}px`, // ← 落下オフセットを反映
+            top: `${y + msgYOffset}px`,
             transform: "translate(-50%, -50%)",
             width: "min(34vw, 360px)",
             height: "min(34vw, 360px)",
@@ -373,7 +370,7 @@ function FireworkWithMessage({
             whiteSpace: "pre-line",
             overflow: "hidden",
             userSelect: "none",
-            opacity: msgOpacity, // ← フェード
+            opacity: msgOpacity,
           }}
         >
           {message}
