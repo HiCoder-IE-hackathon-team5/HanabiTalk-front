@@ -42,22 +42,20 @@ function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
-// 形の候補（芯入りなし）
-const SHAPES: FireworkShape[] = [
+// 形の候補（classic 以外）
+const NON_CLASSIC_SHAPES: FireworkShape[] = [
   "circle",
-  "peony",
-  "chrysanthemum",
-  "willow",
   "kamuro",
   "heart",
   "star",
   "clover",
-  "triangle",
   "diamond",
   "hexagon",
 ];
+// 約5割で classic を、それ以外は残りの形から等確率で選ぶ
 function getRandomShape(): FireworkShape {
-  return SHAPES[Math.floor(Math.random() * SHAPES.length)];
+  if (Math.random() < 0.8) return "classic";
+  return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
 }
 
 export default function ChatPage() {
@@ -92,7 +90,7 @@ export default function ChatPage() {
         size: getFireworkSize(latest.message),
         duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
-        shape: getRandomShape(), // メッセージごとにランダム形状
+        shape: getRandomShape(), // メッセージごとにランダム形状（約5割で classic）
       }
     ]);
   }, [messages]);
