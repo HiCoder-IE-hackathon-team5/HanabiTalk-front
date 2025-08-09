@@ -20,6 +20,8 @@ const hexToRgb = (hex: string): RGB => {
 
 // 既定色（スクショのピンクを初期値に）
 const DEFAULT_HEX = "#ff69b4";
+// w専用の送信カラー（緑）
+const W_GREEN = "#22c55e";
 
 export default function MessageInput({ sendMessage }: MessageInputProps) {
   const [value, setValue] = useState("");
@@ -30,6 +32,26 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
   const [openPicker, setOpenPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // 入力フォーカス用
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // 初回マウント直後にフォーカスしてキャレットを末尾へ
+    const id = requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const len = el.value.length;
+        try {
+          el.setSelectionRange(len, len);
+        } catch {
+          // 一部ブラウザで setSelectionRange 不可の場合は無視
+        }
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -47,6 +69,15 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
     if (!msg) return;
     sendMessage({ message: msg, color: colorHex });
     setValue("");
+    // 送信後も入力にフォーカスを維持
+    inputRef.current?.focus();
+  };
+
+  // 「w」を緑で即送信
+  const handleSendW = () => {
+    sendMessage({ message: "w", color: W_GREEN });
+    // 送信後も入力にフォーカスを維持
+    inputRef.current?.focus();
   };
 
   return (
@@ -68,6 +99,7 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
     >
       {/* 入力欄（左） */}
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -122,7 +154,34 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
         送信
       </button>
 
-      {/* RGBピッカー（ポップオーバー）。見た目は最小限でスクショと干渉しない位置に */}
+      {/* w緑送信ボタン（送信ボタンの右） */}
+      <button
+        type="button"
+        title="w を緑色で送信"
+        aria-label="w を緑色で送信"
+        onClick={handleSendW}
+        style={{
+          height: 42,
+          padding: "0 14px",
+          borderRadius: 10,
+          border: "none",
+          background: "linear-gradient(90deg,#22c55e 0%, #16a34a 100%)",
+          color: "#083b22",
+          fontWeight: 800,
+          letterSpacing: "0.02em",
+          boxShadow: "0 6px 18px rgba(34,197,94,0.35)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minWidth: 48,
+          textTransform: "none",
+        }}
+      >
+        w
+      </button>
+
+      {/* RGBピッカー（ポップオーバー） */}
       {openPicker && (
         <div
           ref={pickerRef}
