@@ -22,9 +22,11 @@ type FireworkItem = {
   shape: FireworkShape;
 };
 
-function getCentralX() {
-  const min = window.innerWidth * 0.25;
-  const max = window.innerWidth * 0.75;
+// 左右の出現範囲を「少し」狭める（安全マージン 3vw → 8vw）
+function getLaunchX() {
+  const edge = Math.max(24, window.innerWidth * 0.08); // 最小24px or 8vw
+  const min = edge;
+  const max = window.innerWidth - edge;
   return Math.random() * (max - min) + min;
 }
 
@@ -68,7 +70,7 @@ const NON_CLASSIC_SHAPES: FireworkShape[] = [
   "diamond",
   "hexagon",
 ];
-// 約8割で classic（必要なら 0.5 で5割に）
+// 出現形の比率
 function getRandomShape(): FireworkShape {
   if (Math.random() < 0.6) return "classic";
   return NON_CLASSIC_SHAPES[Math.floor(Math.random() * NON_CLASSIC_SHAPES.length)];
@@ -101,7 +103,7 @@ export default function ChatPage() {
         id: `${latest.room_name}-${latest.user_name}-${latest.message}-${Date.now()}`,
         message: latest.message,
         color: latest.color,
-        x: getCentralX(),
+        x: getLaunchX(),           // ← 左右の出現範囲を少し狭めたX
         y: getCentralY(),
         size: getFireworkSize(latest.message),
         duration: getFireworkDuration(latest.message),
