@@ -41,21 +41,18 @@ function quantize(value: number, min: number, max: number, steps: number) {
   return min + (idx / (steps - 1)) * (max - min);
 }
 
-// 文字量が増えるほど「大きく」なるが、連続値ではなく段階的に増えるように
+// 文字量が増えるほど「大きく」なるが、段階的に増えるように
 function getFireworkSize(message: string) {
   const len = [...message].length; // 絵文字なども1文字としてカウント
   const raw = Math.min(3.0, 1.0 + len / 30); // 1.0〜3.0に連続スケール
   return quantize(raw, 1.0, 3.0, 10);        // ← 10段階に量子化
 }
-
 function getFireworkDuration(message: string) {
   const len = [...message].length;
-  // 消える速度（寿命）は連続スケールのままでもOK（必要ならこちらも段階化可能）
+  // 消える速度（寿命）は連続スケール
   return Math.max(3, Math.min(12, 3 + len * 0.08));
 }
-
 function getFireworkLaunchSpeed(message: string) {
-  // 打ち上げ速度は従来どおり（必要に応じて調整可）
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
@@ -104,8 +101,8 @@ export default function ChatPage() {
         color: latest.color,
         x: getCentralX(),
         y: getCentralY(),
-        size: getFireworkSize(latest.message),         // ← 段階化サイズ
-        duration: getFireworkDuration(latest.message), // ← 長文ほどゆっくり消える
+        size: getFireworkSize(latest.message),
+        duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
         shape: getRandomShape(),
       }
@@ -242,7 +239,7 @@ export default function ChatPage() {
   );
 }
 
-// 花火とメッセージ表示
+// 花火とメッセージ表示（爆発中の寿命と同じ長さでフェード＋落下）
 function FireworkWithMessage({
   id,
   x,
@@ -267,9 +264,67 @@ function FireworkWithMessage({
   onEnd: (id: string) => void;
 }) {
   const [showMsg, setShowMsg] = useState(false);
+  const [msgOpacity, setMsgOpacity] = useState(0);
+  const [msgYOffset, setMsgYOffset] = useState(0); // 追加: 下方向オフセット(px)
+
+  const fadeRafRef = useRef<number | null>(null);
+  const fadeStartRef = useRef<number | null>(null);
+
+  const stopFade = () => {
+    if (fadeRafRef.current != null) {
+      cancelAnimationFrame(fadeRafRef.current);
+      fadeRafRef.current = null;
+    }
+    fadeStartRef.current = null;
+  };
+
+  // メッセージの落下距離を算出（花火の大きさと寿命に応じて増やす）
+  function getMaxDropPx(size: number, duration: number) {
+    const base = 60;                    // 基本の落下量
+    const bySize = (size - 1) * 45;     // 大きい花火ほどよく落ちる
+    const byDur = (duration - 3) * 8;   // 長寿命ほどよく落ちる
+    return Math.min(200, base + bySize + byDur); // 上限200px
+  }
+
+  const startFadeAndFall = () => {
+    stopFade();
+    setMsgOpacity(1);
+    setMsgYOffset(0);
+    fadeStartRef.current = performance.now();
+
+    const maxDrop = getMaxDropPx(size, duration);
+
+    const tick = (now: number) => {
+      if (fadeStartRef.current == null) return;
+      const elapsed = now - fadeStartRef.current;
+      const total = duration * 1000; // Firework の寿命と同じ
+      const t = Math.min(1, elapsed / total);
+
+      // フェード（線形）
+      setMsgOpacity(1 - t);
+
+      // 落下（重力っぽく加速: t^2）
+      const yOff = maxDrop * (t * t);
+      setMsgYOffset(yOff);
+
+      if (t < 1) {
+        fadeRafRef.current = requestAnimationFrame(tick);
+      } else {
+        fadeRafRef.current = null;
+      }
+    };
+    fadeRafRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    return () => stopFade();
+  }, []);
 
   const handleFireworkEnd = () => {
     setShowMsg(false);
+    setMsgOpacity(0);
+    setMsgYOffset(0);
+    stopFade();
     onEnd(id);
   };
 
@@ -284,14 +339,17 @@ function FireworkWithMessage({
         launchSpeed={launchSpeed}
         shape={shape}
         onEnd={handleFireworkEnd}
-        onExplode={() => setShowMsg(true)}
+        onExplode={() => {
+          setShowMsg(true);
+          startFadeAndFall(); // 爆発開始と同時にフェード＆落下開始
+        }}
       />
       {showMsg && (
         <div
           style={{
             position: "fixed",
             left: `${x}px`,
-            top: `${y}px`,
+            top: `${y + msgYOffset}px`, // ← 落下オフセットを反映
             transform: "translate(-50%, -50%)",
             width: "min(34vw, 360px)",
             height: "min(34vw, 360px)",
@@ -315,6 +373,7 @@ function FireworkWithMessage({
             whiteSpace: "pre-line",
             overflow: "hidden",
             userSelect: "none",
+            opacity: msgOpacity, // ← フェード
           }}
         >
           {message}
