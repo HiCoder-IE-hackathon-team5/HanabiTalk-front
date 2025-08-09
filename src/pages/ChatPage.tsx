@@ -4,7 +4,7 @@ import ChatLog from "../components/ChatLog";
 import PanelToggleButton from "../components/PanelToggleButton";
 import MessageInput from "../components/MessageInput";
 import Logout from "../components/Logout";
-import Firework from "../components/Firework";
+import Firework, { type FireworkShape } from "../components/Firework";
 import StarryBackground from "../components/StarryBackground";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import { getCookie } from "../utils/cookie";
@@ -19,6 +19,7 @@ type FireworkItem = {
   size: number;
   duration: number;
   launchSpeed: number;
+  shape: FireworkShape;
 };
 
 function getCentralX() {
@@ -39,6 +40,24 @@ function getFireworkDuration(message: string) {
 }
 function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
+}
+
+// 形の候補（芯入りなし）
+const SHAPES: FireworkShape[] = [
+  "circle",
+  "peony",
+  "chrysanthemum",
+  "willow",
+  "kamuro",
+  "heart",
+  "star",
+  "clover",
+  "triangle",
+  "diamond",
+  "hexagon",
+];
+function getRandomShape(): FireworkShape {
+  return SHAPES[Math.floor(Math.random() * SHAPES.length)];
 }
 
 export default function ChatPage() {
@@ -73,6 +92,7 @@ export default function ChatPage() {
         size: getFireworkSize(latest.message),
         duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
+        shape: getRandomShape(), // メッセージごとにランダム形状
       }
     ]);
   }, [messages]);
@@ -117,6 +137,7 @@ export default function ChatPage() {
           size={item.size}
           duration={item.duration}
           launchSpeed={item.launchSpeed}
+          shape={item.shape}
           onEnd={handleFireworkEnd}
         />
       ))}
@@ -194,10 +215,9 @@ export default function ChatPage() {
       <div
         style={{
           position: "fixed",
-          left: 0,
-          bottom: 0,
-          width: "min(480px, 92vw)",
-          padding: "1.2em 1em",
+          left: 12,
+          bottom: 12,
+          width: "min(520px, 92vw)",
           zIndex: 100,
         }}
       >
@@ -217,6 +237,7 @@ function FireworkWithMessage({
   size,
   duration,
   launchSpeed,
+  shape,
   onEnd,
 }: {
   id: string;
@@ -227,6 +248,7 @@ function FireworkWithMessage({
   size: number;
   duration: number;
   launchSpeed: number;
+  shape: FireworkShape;
   onEnd: (id: string) => void;
 }) {
   const [showMsg, setShowMsg] = useState(false);
@@ -245,6 +267,7 @@ function FireworkWithMessage({
         size={size}
         duration={duration}
         launchSpeed={launchSpeed}
+        shape={shape}
         onEnd={handleFireworkEnd}
         onExplode={() => setShowMsg(true)}
       />
@@ -255,14 +278,15 @@ function FireworkWithMessage({
             left: `${x}px`,
             top: `${y}px`,
             transform: "translate(-50%, -50%)",
-            width: "min(30vw, 320px)",
-            height: "min(30vw, 320px)",
+            width: "min(34vw, 360px)",
+            height: "min(34vw, 360px)",
             borderRadius: "50%",
             background: "none",
-            color: color,
-            fontWeight: "bold",
-            fontSize: "clamp(1rem, 3vw, 2rem)",
-            textShadow: "0 0 8px #fff, 0 0 20px #000",
+            color: "#eaf1ff",
+            fontWeight: 700,
+            fontSize: "clamp(1rem, 3.2vw, 2.2rem)",
+            textShadow:
+              "0 0 2px #fff, 0 0 8px rgba(255,255,255,.9), 0 0 18px rgba(183,205,255,.9), 0 2px 4px rgba(0,0,0,.65)",
             pointerEvents: "none",
             zIndex: 52,
             display: "flex",
