@@ -26,36 +26,39 @@ export type FireworkProps = {
   y: number;         // 爆発させたい目標Y
   color: string;
   size: number;      // 1.0 基準（爆発半径スケールにも反映）
-  duration: number;  // 秒（寿命に反映）
+  duration: number;  // 秒（寿命に反映）← 短くすると平均負荷が下がる（余韻短く）
   launchSpeed: number; // 0.7〜1.5 目安（初速へは弱めに反映）
   shape: FireworkShape;
   onEnd: () => void;
   onExplode: () => void;
 };
 
-// レンダ頻度を下げて描画コストを削減（30fps -> 24fps）
-const DRAW_FPS = 24;
+// 描画FPS（下げるほど軽いがカクつき増） ← 調整ポイント: 24 → 20 へ
+const DRAW_FPS = 20;
 const DRAW_INTERVAL = 1000 / DRAW_FPS;
 
-// トレイル履歴を短縮（ノード数削減）
-const HISTORY_LEN = 4;
+// トレイル履歴数（層数を減らすと軽いが尾が短/薄に） ← 調整ポイント: 4 → 3
+const HISTORY_LEN = 3;
 
 const UNIFORM_GRAVITY = 0.045;
 const FRICTION = 0.92;
-const BASE_SPEED = 7;
+
+// 初速の基準（下げると広がりが控えめ＆負荷減） ← 調整ポイント: 7 → 6.5
+const BASE_SPEED = 6.5;
 
 // 上昇の減速（「ゆっくり上がる」を維持）
 const ROCKET_DECEL = 0.18; // 旧: 0.22
 
+// 粒子数（減らすと軽いが密度低下） ← 調整ポイント: 約10〜20%減
 const PARTICLE_COUNTS: Record<FireworkShape, number> = {
-  classic: 64,
-  circle: 36,
-  kamuro: 60,
-  heart: 42,
-  star: 44,
-  clover: 44,
-  diamond: 42,
-  hexagon: 48,
+  classic: 56, // 64 → 56
+  circle: 32,  // 36 → 32
+  kamuro: 52,  // 60 → 52
+  heart: 36,   // 42 → 36
+  star: 36,    // 44 → 36
+  clover: 36,  // 44 → 36
+  diamond: 36, // 42 → 36
+  hexagon: 40, // 48 → 40
 };
 
 // 形ごとの平均半径の差を吸収
@@ -194,7 +197,7 @@ export default function Firework({
     let rafId = 0;
     let prev = performance.now();
 
-    const stepMs = 1000 / 60;
+    const stepMs = 1000 / 60; // 物理演算は60fps相当で安定
     let acc = 0;
 
     const initExplosion = () => {
@@ -202,6 +205,7 @@ export default function Firework({
       const arr: Particle[] = [];
 
       const explosionCssColor = color;
+      // BASE_SPEED（初速の基準）を下げると広がり控えめ＆負荷減
       const base = BASE_SPEED * getExplosionSpeedScale(size);
       const spd = base * SHAPE_RADIUS_NORMALIZER[shape];
 
@@ -261,13 +265,14 @@ export default function Firework({
           }
         } else {
           const pArr = particlesRef.current;
+          // duration が短いほど早く消える（平均負荷減）← 調整ポイント
           const decay = stepMs / (duration * 1000);
           let alive = 0;
 
           for (let p of pArr) {
             if (p.life <= 0) continue;
 
-            // 履歴は短縮（描画はCSSの多重 box-shadow で1ノード化）
+            // 履歴は短縮（box-shadow 多重で1ノード描画）
             p.history.push({ x: p.x, y: p.y, opacity: p.life });
             if (p.history.length > HISTORY_LEN) p.history.shift();
 
@@ -289,7 +294,7 @@ export default function Firework({
         }
       }
 
-      // 描画間引き（24fps）
+      // 描画間引き（DRAW_FPS）← 調整ポイント
       if (now - lastDrawRef.current >= DRAW_INTERVAL) {
         lastDrawRef.current = now;
         if (phaseRef.current === "launch") {
@@ -339,18 +344,19 @@ export default function Firework({
     );
   }
 
-  // 履歴を複数の box-shadow にまとめて1ノード描画にする
+  // トレイルを複数の box-shadow にまとめて1ノード描画にする
+  // ぼかし量・スプレッドを下げると軽い（ふわっと感は少し減る）← 調整ポイント
   const makeTrailShadow = (p: Particle) => {
     if (!p.history.length) return "";
-    // 古い履歴ほど広く・弱く見えるようにぼかし量を増やす
     const parts: string[] = [];
+    const blurBase = 4;   // 6 → 4
+    const blurStep = 2;   // 3 → 2
+    const spread = 1;     // 2 → 1
     for (let j = 0; j < p.history.length; j++) {
       const h = p.history[j];
       const dx = h.x - p.x;
       const dy = h.y - p.y;
-      const blur = 6 + j * 3;
-      const spread = 2; // ちょい厚み
-      // 色は currentColor を使用し、要素側で color = p.color にする
+      const blur = blurBase + j * blurStep;
       parts.push(`${dx}px ${dy}px ${blur}px ${spread}px currentColor`);
     }
     return parts.join(", ");
@@ -376,7 +382,7 @@ export default function Firework({
                     borderRadius: "50%",
                     background: "transparent",
                     color: p.color, // currentColor に反映
-                    opacity: 0.22, // 全体の薄さ（以前の h.opacity * 0.18 のイメージ）
+                    opacity: 0.24,  // 全体の薄さ（HISTORY_LEN 減の分を少し補正）
                     boxShadow: trailShadow,
                     transform: "translate(-50%, -50%) translateZ(0)",
                     pointerEvents: "none",
@@ -387,17 +393,18 @@ export default function Firework({
                 />
               )}
 
-              {/* コア粒子 */}
+              {/* コア粒子（サイズを少し下げて描画負荷を低減）← 調整ポイント: *10 → *9 */}
               <div
                 style={{
                   position: "absolute",
                   left: `${p.x}px`,
                   top: `${p.y}px`,
-                  width: `${p.size * 10}px`,
-                  height: `${p.size * 10}px`,
+                  width: `${p.size * 9}px`,
+                  height: `${p.size * 9}px`,
                   borderRadius: "50%",
                   background: p.color,
-                  boxShadow: `0 0 8px 4px ${p.color}`,
+                  // 発光のぼかしもやや軽めに（8px/4px → 7px/3px）← 調整ポイント
+                  boxShadow: `0 0 7px 3px ${p.color}`,
                   opacity: p.life * 0.85 + 0.15,
                   filter: "blur(0.2px)",
                   transform: "translate(-50%, -50%) translateZ(0)",
