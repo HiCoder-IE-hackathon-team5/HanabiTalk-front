@@ -5,10 +5,13 @@ import PanelToggleButton from "../components/PanelToggleButton";
 import MessageInput from "../components/MessageInput";
 import Logout from "../components/Logout";
 import Firework from "../components/Firework";
+import type { FireworkShape } from "../components/Firework";
 import StarryBackground from "../components/StarryBackground";
 import { subscribeMockMessages, addMockMessage } from "../mocks/messageMock";
 import { getCookie } from "../utils/cookie";
-import type { MessagePayload } from "../mocks/messageMock";
+import type { MessagePayload as OrigMessagePayload } from "../mocks/messageMock";
+
+type MessagePayload = OrigMessagePayload;
 
 type FireworkItem = {
   id: string;
@@ -17,8 +20,8 @@ type FireworkItem = {
   x: number;
   y: number;
   size: number;
-  duration: number;
   launchSpeed: number;
+  shape: FireworkShape;
 };
 
 function getCentralX() {
@@ -34,15 +37,37 @@ function getCentralY() {
 function getFireworkSize(message: string) {
   return Math.min(2.5, 1.0 + message.length / 40);
 }
-function getFireworkDuration(message: string) {
-  return Math.max(3, Math.min(9, message.length * 0.06));
-}
 function getFireworkLaunchSpeed(message: string) {
   return Math.max(0.7, Math.min(1.5, 1.5 - message.length * 0.015));
 }
 
+const colorList = [
+  { code: "#ff69b4", name: "ピンク" },
+  { code: "#00bfff", name: "ブルー" },
+  { code: "#ffd700", name: "ゴールド" },
+  { code: "#32cd32", name: "グリーン" },
+  { code: "#fff", name: "ホワイト" },
+  { code: "#ff4500", name: "オレンジ" },
+  { code: "#9932cc", name: "パープル" },
+];
+
+// 「芯入り」を除外
+const SHAPES: { label: string; shape: FireworkShape }[] = [
+  { label: "円", shape: "circle" },
+  { label: "芍薬", shape: "peony" },
+  { label: "菊", shape: "chrysanthemum" },
+  { label: "柳", shape: "willow" },
+  { label: "冠", shape: "kamuro" },
+  // { label: "芯入り", shape: "pistil" }, // 削除
+  { label: "ハート", shape: "heart" },
+  { label: "星", shape: "star" },
+  { label: "クローバー", shape: "clover" },
+  { label: "三角", shape: "triangle" },
+  { label: "ダイヤ", shape: "diamond" },
+  { label: "六角", shape: "hexagon" },
+];
+
 export default function ChatPage() {
-  // ログイン時にcookieへ保存されている値を取得
   const userName = getCookie("user_name") || "you";
   const roomName = getCookie("room_name") || "General";
 
@@ -51,8 +76,11 @@ export default function ChatPage() {
   const [fireworkItems, setFireworkItems] = useState<FireworkItem[]>([]);
   const lastMessageRef = useRef<MessagePayload | null>(null);
 
+  const [color, setColor] = useState("#ff69b4");
+  const [shape, setShape] = useState<FireworkShape>("circle");
+
   useEffect(() => {
-    const unsubscribe = subscribeMockMessages(roomName, (msgs) => setMessages(msgs));
+    const unsubscribe = subscribeMockMessages(roomName, (msgs: MessagePayload[]) => setMessages(msgs));
     return unsubscribe;
   }, [roomName]);
 
@@ -71,11 +99,11 @@ export default function ChatPage() {
         x: getCentralX(),
         y: getCentralY(),
         size: getFireworkSize(latest.message),
-        duration: getFireworkDuration(latest.message),
         launchSpeed: getFireworkLaunchSpeed(latest.message),
+        shape: shape,
       }
     ]);
-  }, [messages]);
+  }, [messages, shape]);
 
   const sendMessage = (data: { message: string; color: string }) => {
     if (!data.message.trim()) return;
@@ -96,16 +124,13 @@ export default function ChatPage() {
   return (
     <div style={{ minHeight: "100vh", background: "transparent", position: "relative" }}>
       <StarryBackground />
-      {/* ログパネル */}
       <SidePanel isOpen={logOpen}>
         <ChatLog messages={messages} userName={userName} />
       </SidePanel>
-      {/* サイドパネルのトグルボタン */}
       <PanelToggleButton
         onClick={() => setLogOpen((open) => !open)}
         isOpen={logOpen}
       />
-      {/* 花火エフェクト */}
       {fireworkItems.map(item => (
         <FireworkWithMessage
           key={item.id}
@@ -115,12 +140,11 @@ export default function ChatPage() {
           color={item.color}
           message={item.message}
           size={item.size}
-          duration={item.duration}
           launchSpeed={item.launchSpeed}
+          shape={item.shape}
           onEnd={handleFireworkEnd}
         />
       ))}
-      {/* 右下のヘッダー・ユーザ情報＋「チャットページ」文言もこの中へ */}
       <div
         style={{
           position: "fixed",
@@ -179,7 +203,7 @@ export default function ChatPage() {
                 cursor: "pointer",
                 margin: 0,
                 boxShadow: "0 1px 8px #6366f155",
-                transition: "background 0.18s, box-shadow 0.12s, transform 0.09s",
+                transition: "background 0.18s, boxShadow 0.12s, transform 0.09s",
                 outline: "none",
                 pointerEvents: "auto",
               }}
@@ -190,24 +214,45 @@ export default function ChatPage() {
           </span>
         </div>
       </div>
-      {/* 入力欄を左下に絶対位置配置 */}
       <div
         style={{
           position: "fixed",
           left: 0,
           bottom: 0,
-          width: "min(480px, 92vw)",
+          width: "min(600px, 98vw)",
           padding: "1.2em 1em",
           zIndex: 100,
         }}
       >
-        <MessageInput sendMessage={sendMessage} />
+        {/* 花火の形ボタン「芯入り」を除外 */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: "0.8em", gap: "1.3em", flexWrap: "wrap" }}>
+          <span style={{ color: "#eee" }}>形:</span>
+          {SHAPES.map((s) => (
+            <button
+              key={s.shape}
+              onClick={() => setShape(s.shape)}
+              style={{
+                fontWeight: shape === s.shape ? "bold" : undefined,
+                padding: "0.3em 0.9em",
+                borderRadius: "7px",
+                border: "none",
+                background: shape === s.shape ? "#ede" : "#fff",
+                color: "#252",
+                cursor: "pointer",
+                boxShadow: shape === s.shape ? "0 2px 6px #0002" : "none",
+                fontSize: "1em",
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <MessageInput sendMessage={sendMessage} color={color} setColor={setColor} colorList={colorList} />
       </div>
     </div>
   );
 }
 
-// 花火とメッセージ表示
 function FireworkWithMessage({
   id,
   x,
@@ -215,8 +260,8 @@ function FireworkWithMessage({
   color,
   message,
   size,
-  duration,
   launchSpeed,
+  shape,
   onEnd,
 }: {
   id: string;
@@ -225,8 +270,8 @@ function FireworkWithMessage({
   color: string;
   message: string;
   size: number;
-  duration: number;
   launchSpeed: number;
+  shape: FireworkShape;
   onEnd: (id: string) => void;
 }) {
   const [showMsg, setShowMsg] = useState(false);
@@ -243,8 +288,8 @@ function FireworkWithMessage({
         y={y}
         color={color}
         size={size}
-        duration={duration}
         launchSpeed={launchSpeed}
+        shape={shape}
         onEnd={handleFireworkEnd}
         onExplode={() => setShowMsg(true)}
       />
@@ -262,7 +307,7 @@ function FireworkWithMessage({
             color: color,
             fontWeight: "bold",
             fontSize: "clamp(1rem, 3vw, 2rem)",
-            textShadow: "0 0 8px #fff, 0 0 20px #000",
+            textShadow: "0 0 12px #fff, 0 0 20px #000",
             pointerEvents: "none",
             zIndex: 52,
             display: "flex",
