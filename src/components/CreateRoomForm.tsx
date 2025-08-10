@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { setCookie } from "../utils/cookie";
-import { fetchUserId } from "../utils/api";
+import { fetchUserId, createRoom } from "../utils/api";
+
 
 const sectionStyle: React.CSSProperties = {
   background: "rgba(24, 27, 39, 0.92)",
@@ -78,25 +79,32 @@ const CreateRoomForm = () => {
   const navigate = useNavigate();
 
   const handleCreate = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!roomName || !userName) {
+    e?.preventDefault();
+    const rn = roomName.trim();
+    const un = userName.trim();
+    if (!rn || !un) {
       setError("ルーム名とユーザー名を入力してください");
       return;
     }
 
-    // 新規作成APIがある場合はここで呼ぶ
-    // await createRoom(roomName);
-
     try {
-      const userId = await fetchUserId(userName);
-      setCookie("user_name", userName);
-      setCookie("room_name", roomName);
+      // 1) ルーム作成
+      await createRoom(rn);
+
+      // 2) 参加して userId 取得（JOINは form 受けなので api.ts は roomName 必須）
+      const userId = await fetchUserId(un, rn);
+
+      // 3) Cookie保存＆遷移
+      setCookie("user_name", un);
+      setCookie("room_name", rn);
       setCookie("user_id", userId);
       navigate("/chat");
-    } catch (error) {
-      setError("ユーザーIDの取得に失敗しました");
+    } catch (err) {
+      console.error(err);
+      setError("ルーム作成または入室に失敗しました");
     }
   };
+
 
   return (
     <form style={sectionStyle} onSubmit={handleCreate} autoComplete="off">
