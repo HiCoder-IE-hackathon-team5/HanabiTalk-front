@@ -42,7 +42,7 @@ function quantize(value: number, min: number, max: number, steps: number) {
 }
 function getFireworkSize(message: string) {
   const len = [...message].length;
-  const raw = Math.min(3.0, 1.0 + len / 30);
+  const raw = Math.min(5.0, 1.0 + len / 15);
   return quantize(raw, 1.0, 3.0, 10);
 }
 function getFireworkDuration(message: string) {
@@ -77,7 +77,7 @@ const GRAVITY_BASE = 0.045;          // Firework の UNIFORM_GRAVITY
 
 // ここを調整して「テキストだけ」落下を弱める
 const TEXT_FALL_SCALE_FIREWORK = 1.6; // 粒子（非w）に渡す重力倍率（据え置き）
-const TEXT_FALL_SCALE_TEXT = 1.2;    // テキストの重力倍率（以前 1.6 → 少し弱め）
+const TEXT_FALL_SCALE_TEXT = 0.6;    // テキストの重力倍率（以前 1.6 → 少し弱め）
 
 // n ステップ後の離散系落下距離（初速 0、v_{k+1} = F*v_k + g）
 // 累積位置 Y(n) = g * [ n/(1-F) - (1 - F^n)/(1-F)^2 ]
@@ -384,8 +384,8 @@ function FireworkWithMessage({
             left: `${x}px`,
             top: `${y + msgYOffset}px`,
             transform: "translate(-50%, -50%)",
-            width: "min(34vw, 360px)",
-            height: "min(34vw, 360px)",
+            width: "min(40vw, 440px)",
+            height: "min(40vw, 440px)",
             borderRadius: "50%",
             background: "none",
             color: color,
@@ -393,7 +393,7 @@ function FireworkWithMessage({
               "0 0 2px #fff, 0 0 10px currentColor, 0 0 22px currentColor, 0 0 36px currentColor, 0 2px 4px rgba(0,0,0,.65)",
             WebkitTextStroke: "0.6px rgba(0,0,0,0.25)",
             fontWeight: 700,
-            fontSize: "clamp(1rem, 3.2vw, 2.2rem)",
+            fontSize: "clamp(0.9rem, 2.8vw, 2.0rem)",
             pointerEvents: "none",
             zIndex: 52,
             display: "flex",
@@ -401,7 +401,7 @@ function FireworkWithMessage({
             justifyContent: "center",
             textAlign: "center",
             boxSizing: "border-box",
-            padding: "1em",
+            padding: "0.85em",
             wordBreak: "break-word",
             whiteSpace: "pre-line",
             overflow: "hidden",

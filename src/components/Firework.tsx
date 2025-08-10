@@ -43,8 +43,8 @@ const DRAW_INTERVAL = 1000 / DRAW_FPS;
 // トレイル履歴数（層数を減らすと軽いが尾が短/薄に）
 const HISTORY_LEN = 3;
 
-const UNIFORM_GRAVITY = 0.045;
-const FRICTION = 0.92;
+const UNIFORM_GRAVITY = 0.030;
+const FRICTION = 0.90;
 
 // 初速の基準（下げると広がりが控えめ＆負荷減）
 const BASE_SPEED = 6.5;
@@ -80,7 +80,7 @@ const SHAPE_RADIUS_NORMALIZER: Record<FireworkShape, number> = {
 
 // 文字量に応じた爆発半径（初速）スケール
 function getExplosionSpeedScale(size: number) {
-  return Math.min(2.0, 0.8 + 0.4 * size);
+  return Math.min(2.8, 0.8 + 0.8 * size);
 }
 
 // 目標Yにほぼ到達するよう、必要な初速を目標Yから逆算（離散系の近似）
@@ -404,9 +404,9 @@ export default function Firework({
 
           // 「文字（w）」の落下強化（前仕様を維持）
           const isW = shapeRef.current === "w";
-          const gravity = isW ? 0.06 : UNIFORM_GRAVITY;
-          const friction = isW ? 0.965 : FRICTION;
-          const maxVel = isW ? 1.2 : 999;
+          const gravity = isW ? 0.03 : UNIFORM_GRAVITY;
+          const friction = isW ? 0.9 : FRICTION;
+          const maxVel = isW ? 0.8 : 999;
 
           const maxHist = isW ? 2 : HISTORY_LEN; // w は尾を短く（くっきり優先）
 
