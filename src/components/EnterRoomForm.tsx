@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { setCookie } from "../utils/cookie";
 import { fetchRoomList, isUserNameDuplicated, fetchUserId } from "../utils/api";
@@ -81,16 +81,36 @@ const sectionHeaderStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
-const publicRooms = [
-  { name: "momiji" },
-  { name: "sakura" },
-];
-
 const EnterRoomForm = () => {
   const [roomName, setRoomName] = useState("");
   const [userName, setUserName] = useState("");
   const [error, setError] = useState("");
+  const [publicRoomNames, setPublicRoomNames] = useState<string[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState<boolean>(true);
   const navigate = useNavigate();
+
+  // ルーム一覧を roomlist(API) から取得
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingRooms(true);
+        const rooms = await fetchRoomList();
+        if (!cancelled) {
+          setPublicRoomNames(rooms.map(r => r.room_name));
+        }
+      } catch {
+        if (!cancelled) {
+          setPublicRoomNames([]);
+        }
+      } finally {
+        if (!cancelled) setLoadingRooms(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleEnter = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -140,6 +160,7 @@ const EnterRoomForm = () => {
         placeholder="ユーザー名"
         spellCheck={false}
         autoComplete="username"
+        onFocus={() => setError("")}
       />
 
       <label htmlFor="roomName" style={labelStyle}>ルーム名</label>
@@ -153,9 +174,10 @@ const EnterRoomForm = () => {
         placeholder="ルーム名"
         spellCheck={false}
         autoComplete="off"
+        onFocus={() => setError("")}
       />
 
-      {/* 要望どおり「ルーム名」と「入室」の間にエラー表示（高さは常時確保） */}
+      {/* 「ルーム名」と「入室」の間にエラー表示（高さは常時確保） */}
       <div style={reservedErrorStyle(Boolean(error))} aria-live="polite" role="status">
         {error || "　"}
       </div>
@@ -164,49 +186,63 @@ const EnterRoomForm = () => {
         入室
       </button>
 
-      {/* 公開ルーム一覧 */}
-      <div style={{
-        marginTop: "1em",
-        width: "100%",
-        textAlign: "center",
-      }}>
-        <div style={{
-          color: "#b9d6ff",
-          fontWeight: 700,
-          fontSize: "0.98em",
-          marginBottom: "0.5em",
-        }}>
-          公開ルーム
+      {/* ルーム一覧（roomlistから参照） */}
+      <div style={{ marginTop: "1em", width: "100%", textAlign: "center" }}>
+        <div
+          style={{
+            color: "#b9d6ff",
+            fontWeight: 700,
+            fontSize: "0.98em",
+            marginBottom: "0.5em",
+          }}
+        >
+          ルーム一覧
         </div>
-        <div style={{
-          display: "flex",
-          gap: "0.6em",
-          justifyContent: "center",
-        }}>
-          {publicRooms.map(r => (
-            <button
-              type="button"
-              key={r.name}
-              onClick={() => setRoomName(r.name)}
-              style={{
-                background: "#28374f",
-                color: "#fff",
-                border: "none",
-                borderRadius: "6px",
-                padding: "0.4em 1em",
-                fontSize: "0.97em",
-                fontWeight: 600,
-                cursor: "pointer",
-                boxShadow: "0 1px 4px #0002",
-                transition: "background 0.13s",
-              }}
-              onMouseOver={e => (e.currentTarget.style.background = "#33549b")}
-              onMouseOut={e => (e.currentTarget.style.background = "#28374f")}
-            >
-              {r.name}
-            </button>
-          ))}
-        </div>
+
+        {loadingRooms ? (
+          <div style={{ color: "#cdd9ff", opacity: 0.8, fontSize: "0.95em" }}>
+            読み込み中…
+          </div>
+        ) : publicRoomNames.length === 0 ? (
+          <div
+            style={{
+              color: "#cdd9ff",
+              opacity: 0.85,
+              fontSize: "0.95em",
+            }}
+          >
+            ルームはありません
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: "0.6em", justifyContent: "center", flexWrap: "wrap" }}>
+            {publicRoomNames.map((name) => (
+              <button
+                type="button"
+                key={name}
+                onClick={() => {
+                  setRoomName(name);
+                  setError("");
+                }}
+                style={{
+                  background: "#28374f",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "0.4em 1em",
+                  fontSize: "0.97em",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 1px 4px #0002",
+                  transition: "background 0.13s",
+                }}
+                onMouseOver={e => (e.currentTarget.style.background = "#33549b")}
+                onMouseOut={e => (e.currentTarget.style.background = "#28374f")}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </form>
   );
