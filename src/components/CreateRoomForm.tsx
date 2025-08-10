@@ -51,7 +51,7 @@ const buttonStyle: React.CSSProperties = {
   transition: "background 0.14s, box-shadow 0.12s, transform 0.07s",
 };
 
-const errorStyle: React.CSSProperties = {
+const errorStyleBase: React.CSSProperties = {
   color: "#ff6377",
   background: "#fff1",
   borderRadius: "5px",
@@ -61,6 +61,16 @@ const errorStyle: React.CSSProperties = {
   fontSize: "0.97em",
   textAlign: "center",
 };
+
+// エラーの出し入れで高さが変わらないように常に領域を確保
+const reservedErrorStyle = (visible: boolean): React.CSSProperties => ({
+  ...errorStyleBase,
+  minHeight: "2.2em",       // 1行分程度
+  opacity: visible ? 1 : 0, // 非表示時は透明化
+  transition: "opacity 120ms ease",
+  pointerEvents: "none",
+  whiteSpace: "pre-wrap",
+});
 
 const sectionHeaderStyle: React.CSSProperties = {
   color: "#eaf6ff",
@@ -84,16 +94,13 @@ const CreateRoomForm = () => {
       return;
     }
 
-    // 新規作成APIがある場合はここで呼ぶ
-    // await createRoom(roomName);
-
     try {
       const userId = await fetchUserId(userName);
       setCookie("user_name", userName);
       setCookie("room_name", roomName);
       setCookie("user_id", userId);
       navigate("/chat");
-    } catch (error) {
+    } catch {
       setError("ユーザーIDの取得に失敗しました");
     }
   };
@@ -101,7 +108,7 @@ const CreateRoomForm = () => {
   return (
     <form style={sectionStyle} onSubmit={handleCreate} autoComplete="off">
       <div style={sectionHeaderStyle}>新規作成</div>
-      {error && <div style={errorStyle}>{error}</div>}
+
       <label htmlFor="newUserName" style={labelStyle}>ユーザー名</label>
       <input
         id="newUserName"
@@ -113,8 +120,9 @@ const CreateRoomForm = () => {
         placeholder="ユーザー名"
         spellCheck={false}
         autoComplete="username"
-        autoFocus
+        // autoFocus は LoginPage 側のフォーカス制御と競合しないよう外しています
       />
+
       <label htmlFor="newRoomName" style={labelStyle}>新しいルーム名</label>
       <input
         id="newRoomName"
@@ -126,6 +134,12 @@ const CreateRoomForm = () => {
         placeholder="ルーム名"
         spellCheck={false}
       />
+
+      {/* 「ルーム名」と「作成して入室」の間にエラー（常時高さ確保） */}
+      <div style={reservedErrorStyle(Boolean(error))} aria-live="polite" role="status">
+        {error || "　"}
+      </div>
+
       <button type="submit" style={buttonStyle}>
         作成して入室
       </button>
