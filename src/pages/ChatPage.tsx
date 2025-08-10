@@ -78,6 +78,7 @@ const GRAVITY_BASE = 0.045;          // Firework の UNIFORM_GRAVITY
 // ここを調整して「テキストだけ」落下を弱める
 const TEXT_FALL_SCALE_FIREWORK = 1.6; // 粒子（非w）に渡す重力倍率（据え置き）
 const TEXT_FALL_SCALE_TEXT = 0.6;    // テキストの重力倍率（以前 1.6 → 少し弱め）
+const TEXT_FADE_GROW = 0.60; // 消える間に最大で+60%拡大（数値を上げるとより大きく）
 
 // n ステップ後の離散系落下距離（初速 0、v_{k+1} = F*v_k + g）
 // 累積位置 Y(n) = g * [ n/(1-F) - (1 - F^n)/(1-F)^2 ]
@@ -293,6 +294,7 @@ function FireworkWithMessage({
   const [showMsg, setShowMsg] = useState(false);
   const [msgOpacity, setMsgOpacity] = useState(0);
   const [msgYOffset, setMsgYOffset] = useState(0); // 下方向オフセット(px)
+  const [msgScale, setMsgScale] = useState(1);
 
   const fadeRafRef = useRef<number | null>(null);
   const fadeStartRef = useRef<number | null>(null);
@@ -314,6 +316,7 @@ function FireworkWithMessage({
     stopFade();
     setMsgOpacity(1);
     setMsgYOffset(0);
+    setMsgScale(1); // 追加
     fadeStartRef.current = performance.now();
 
     const totalMs = duration * 1000;
@@ -333,6 +336,7 @@ function FireworkWithMessage({
       const t = Math.min(1, clampedMs / totalMs);
       setMsgOpacity(1 - t);
       setMsgYOffset(drop);
+      setMsgScale(1 + TEXT_FADE_GROW * t); // フェード進行に応じて 1 → 1+GROW へ
 
       if (clampedMs < totalMs) {
         fadeRafRef.current = requestAnimationFrame(tick);
@@ -351,6 +355,7 @@ function FireworkWithMessage({
     setShowMsg(false);
     setMsgOpacity(0);
     setMsgYOffset(0);
+    setMsgScale(1); // 追加
     stopFade();
     onEnd(id);
   };
@@ -383,7 +388,8 @@ function FireworkWithMessage({
             position: "fixed",
             left: `${x}px`,
             top: `${y + msgYOffset}px`,
-            transform: "translate(-50%, -50%)",
+            transform: `translate(-50%, -50%) scale(${msgScale})`,
+            transformOrigin: "center center",
             width: "min(40vw, 440px)",
             height: "min(40vw, 440px)",
             borderRadius: "50%",
