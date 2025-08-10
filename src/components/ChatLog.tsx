@@ -1,50 +1,88 @@
+import { useEffect, useRef } from "react";
 import type { MessagePayload } from "../mocks/messageMock";
 
-export default function ChatLog({
-  messages,
-  userName,
-}: {
+type Props = {
   messages: MessagePayload[];
   userName: string;
-}) {
+};
+
+export default function ChatLog({ messages, userName }: Props) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // 新着で最下部にスクロール
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
   return (
     <div
+      ref={scrollRef}
       style={{
-        width: "100%",
         height: "100%",
-        minHeight: 0,
-        background: "#181d23",
-        color: "#fff",
-        borderRadius: "8px",
-        padding: "1em",
         overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.5em",
-        boxShadow: "0 2px 16px #0004",
+        padding: "16px 18px",
+        boxSizing: "border-box",
       }}
     >
-      {messages.map((msg, i) => (
-        <div
-          key={i}
-          style={{
-            alignSelf: msg.user_name === userName ? "flex-end" : "flex-start",
-            background: msg.user_name === userName ? "#2255a3" : "#333",
-            color: "#fff",
-            borderRadius: "1.2em",
-            padding: "0.7em 1.2em",
-            maxWidth: "75%",
-            wordBreak: "break-word",
-            boxShadow: msg.user_name === userName ? "0 1px 4px #2255a355" : "0 1px 4px #1117",
-          }}
-        >
-          <span style={{ fontWeight: "bold", fontSize: "0.9em" }}>
-            {msg.user_name}
-          </span>
-          <br />
-          <span>{msg.message}</span>
-        </div>
-      ))}
+      {messages.map((m, i) => {
+        const isSelf = m.user_name === userName;
+
+        return (
+          <div
+            key={`${i}-${m.user_name}-${m.message.slice(0, 24)}`}
+            style={{
+              display: "flex",
+              justifyContent: isSelf ? "flex-end" : "flex-start",
+              margin: "10px 0",
+            }}
+          >
+            {/* 縦積み（上: 名前 / 下: 文章）。自分は右寄せ、他人は左寄せ */}
+            <div
+              style={{
+                maxWidth: "min(68ch, 78%)",
+                textAlign: isSelf ? "right" : "left",
+              }}
+            >
+              {/* 名前（上段） */}
+              <div
+                style={{
+                  color: "#eaeaf7", // 名前もチャット本文と同じ白系に統一
+                  fontWeight: 700,
+                  letterSpacing: "0.02em",
+                  whiteSpace: "nowrap",
+                  textShadow: "0 0 2px rgba(0,0,0,.35)",
+                  margin: isSelf ? "0 4px 4px 0" : "0 0 4px 4px",
+                  opacity: 0.95,
+                }}
+                title={m.user_name}
+              >
+                {m.user_name}
+              </div>
+
+              {/* 文章（下段） */}
+              <div
+                style={{
+                  background: isSelf
+                    ? "rgba(99,102,241,0.18)"
+                    : "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#eaeaf7", // 本文は従来どおり白系
+                  padding: "10px 12px",
+                  borderRadius: "12px",
+                  lineHeight: 1.5,
+                  wordBreak: "break-word",
+                  whiteSpace: "pre-wrap",
+                  boxShadow: "0 1px 6px rgba(0,0,0,.18)",
+                }}
+              >
+                {m.message}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
